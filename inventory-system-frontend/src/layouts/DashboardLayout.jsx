@@ -1,9 +1,20 @@
 import { useState } from "react";
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { HiMenu } from "react-icons/hi";
+import {
+  FaTachometerAlt,
+  FaBoxes,
+  FaTags,
+  FaLayerGroup,
+  FaDollarSign,
+  FaCog,
+  FaUser,
+  FaSignOutAlt,
+} from "react-icons/fa";
 
 export default function DashboardLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [inventoryOpen, setInventoryOpen] = useState(
     location.pathname.startsWith("/inventory")
   );
@@ -12,8 +23,26 @@ export default function DashboardLayout() {
   const toggleInventory = () => setInventoryOpen(!inventoryOpen);
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
+  const handleLogout = () => {
+    // Remove token
+    localStorage.removeItem("token");
+
+    // Optional: clear any user-related state if you add one later
+
+    // Redirect to login
+    navigate("/login");
+
+    // Close sidebar (for mobile)
+    setSidebarOpen(false);
+  };
+
+  const linkClass = (path) =>
+    location.pathname === path
+      ? "flex items-center space-x-3 p-2 rounded-lg bg-primary text-white font-semibold transition-colors duration-200"
+      : "flex items-center space-x-3 p-2 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200";
+
   return (
-    <div className="flex min-h-screen bg-base-100">
+    <div className="flex min-h-screen bg-gray-100 font-sans">
       {/* Mobile Hamburger */}
       <div className="md:hidden absolute top-4 left-4 z-50">
         <button onClick={toggleSidebar} className="btn btn-square btn-ghost">
@@ -23,80 +52,104 @@ export default function DashboardLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`bg-base-200 p-4 w-64 md:relative fixed md:static top-0 left-0 h-screen md:h-auto z-40 transform ${
+        className={`bg-gradient-to-b from-gray-800 to-gray-900 p-6 w-64 md:relative fixed md:static top-0 left-0 h-screen md:h-auto z-40 transform ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } transition-transform duration-300 ease-in-out md:translate-x-0 flex-shrink-0`}
+        } transition-transform duration-300 ease-in-out md:translate-x-0 flex-shrink-0 text-gray-200 shadow-lg`}
       >
+        <h1 className="text-2xl font-bold mb-8 text-center text-white tracking-wide">
+          Inventory System
+        </h1>
 
-        <h1 className="text-2xl font-bold mb-6">Inventory System</h1>
-
-        <ul className="menu bg-base-200 w-full rounded-box">
+        <ul className="space-y-2">
+          {/* Dashboard */}
           <li>
             <Link
               to="/"
-              className={
-                location.pathname === "/" ? "active font-bold text-primary" : ""
-              }
+              className={linkClass("/")}
               onClick={() => setSidebarOpen(false)}
             >
-              Dashboard
+              <FaTachometerAlt /> <span>Dashboard</span>
             </Link>
           </li>
 
-          <li tabIndex={0}>
-            <button className="w-full text-left" onClick={toggleInventory}>
-              Inventory
+          {/* Inventory Section */}
+          <li>
+            <button
+              className="flex items-center space-x-3 p-2 w-full rounded-lg hover:bg-primary hover:text-white transition-colors duration-200"
+              onClick={toggleInventory}
+            >
+              <FaBoxes /> <span>Inventory</span>
             </button>
             {inventoryOpen && (
-              <ul className="p-2">
+              <ul className="pl-6 mt-1 space-y-1">
                 <li>
                   <Link
                     to="/inventory"
-                    className={location.pathname === "/inventory" ? "active" : ""}
+                    className={linkClass("/inventory")}
                     onClick={() => setSidebarOpen(false)}
                   >
-                    Products
+                    <FaBoxes /> <span>Products</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     to="/inventory/brands"
-                    className={location.pathname === "/inventory/brands" ? "active" : ""}
+                    className={linkClass("/inventory/brands")}
                     onClick={() => setSidebarOpen(false)}
                   >
-                    Brands
+                    <FaTags /> <span>Brands</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     to="/inventory/categories"
-                    className={location.pathname === "/inventory/categories" ? "active" : ""}
+                    className={linkClass("/inventory/categories")}
                     onClick={() => setSidebarOpen(false)}
                   >
-                    Categories
+                    <FaLayerGroup /> <span>Categories</span>
                   </Link>
                 </li>
               </ul>
             )}
           </li>
 
+          {/* Other Sections */}
           <li>
             <Link
               to="/sales"
-              className={location.pathname === "/sales" ? "active" : ""}
+              className={linkClass("/sales")}
               onClick={() => setSidebarOpen(false)}
             >
-              Sales
+              <FaDollarSign /> <span>Sales</span>
             </Link>
           </li>
           <li>
             <Link
               to="/settings"
-              className={location.pathname === "/settings" ? "active" : ""}
+              className={linkClass("/settings")}
               onClick={() => setSidebarOpen(false)}
             >
-              Settings
+              <FaCog /> <span>Settings</span>
             </Link>
+          </li>
+
+          {/* User Profile & Logout */}
+          <li className="mt-6 pt-4 border-t border-gray-700">
+            <Link
+              to="/profile"
+              className="flex items-center space-x-3 p-2 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <FaUser /> <span>Profile</span>
+            </Link>
+          </li>
+          <li>
+            <button
+              onClick={handleLogout}
+              className="flex items-center space-x-3 w-full p-2 rounded-lg hover:bg-red-600 hover:text-white transition-colors duration-200"
+            >
+              <FaSignOutAlt /> <span>Logout</span>
+            </button>
           </li>
         </ul>
       </aside>
@@ -116,4 +169,3 @@ export default function DashboardLayout() {
     </div>
   );
 }
-

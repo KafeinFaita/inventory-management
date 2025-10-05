@@ -7,6 +7,9 @@ import productRoutes from "./routes/productRoutes.js";
 import brandRoutes from "./routes/brandRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import salesRoutes from "./routes/salesRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+
 
 dotenv.config();
 
@@ -18,6 +21,8 @@ app.use("/api/products", productRoutes);
 app.use("/api/brands", brandRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/sales", salesRoutes);
+app.use("/api/auth", authRoutes);
 
 
 // Connect to MongoDB

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { FaBoxes, FaTags, FaLayerGroup } from "react-icons/fa";
+import AddSaleForm from "../components/AddSaleForm";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -19,21 +20,38 @@ export default function Dashboard() {
   const [chartData, setChartData] = useState(stats.monthlySales);
 
   useEffect(() => {
-    // fetchStats(); // will replace mock data with DB later
+  const fetchStats = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/dashboard");
+      const data = await res.json();
 
-    const handleResize = () => {
+      setStats(data);
+
+      // Adjust chart for mobile
       if (window.innerWidth < 768) {
-        // mobile: show only last 3 months
-        setChartData(stats.monthlySales.slice(-3));
+        setChartData(data.monthlySales.slice(-3));
       } else {
-        setChartData(stats.monthlySales);
+        setChartData(data.monthlySales);
       }
-    };
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+    }
+  };
 
-    handleResize(); // initial check
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [stats.monthlySales]);
+  fetchStats();
+
+  const handleResize = () => {
+    setChartData(
+      window.innerWidth < 768
+        ? stats.monthlySales.slice(-3)
+        : stats.monthlySales
+    );
+  };
+
+  window.addEventListener("resize", handleResize);
+  return () => window.removeEventListener("resize", handleResize);
+}, [stats.monthlySales]);
+
 
   return (
     <div className="p-4 md:p-6 space-y-6">
