@@ -7,24 +7,28 @@ export default function Sales() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+useEffect(() => {
+  const fetchSales = async () => {
+    try {
+      const token = localStorage.getItem("token"); // get JWT token
+      const res = await fetch("http://localhost:5000/api/sales", {
+        headers: {
+          Authorization: `Bearer ${token}`, // pass token in headers
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch sales data");
+      const data = await res.json();
+      setSales(data);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to load sales data.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  useEffect(() => {
-    const fetchSales = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/api/sales");
-        if (!res.ok) throw new Error("Failed to fetch sales data");
-        const data = await res.json();
-        setSales(data);
-      } catch (err) {
-        console.error(err);
-        setError("Unable to load sales data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSales();
-  }, []);
+  fetchSales();
+}, []);
 
   if (loading)
     return <p className="p-4 text-center text-lg">Loading sales data...</p>;

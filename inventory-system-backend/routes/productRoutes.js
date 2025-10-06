@@ -1,20 +1,18 @@
 import express from "express";
 import Product from "../models/Product.js";
+import { protect, adminOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Get all products
-router.get("/", async (req, res) => {
-  try {
-    const products = await Product.find();
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// Get all products (admin + staff can view)
+router.get("/", protect, (req, res) => {
+  Product.find()
+    .then(products => res.json(products))
+    .catch(err => res.status(500).json({ error: err.message }));
 });
 
-// Create a new product
-router.post("/", async (req, res) => {
+// Create product (admin only)
+router.post("/", protect, adminOnly, async (req, res) => {
   try {
     const product = new Product(req.body);
     await product.save();
@@ -24,14 +22,10 @@ router.post("/", async (req, res) => {
   }
 });
 
-// --- NEW: Update product ---
-router.put("/:id", async (req, res) => {
+// Update product (admin only)
+router.put("/:id", protect, adminOnly, async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true } // return the updated document
-    );
+    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!product) return res.status(404).json({ error: "Product not found" });
     res.json(product);
   } catch (err) {
@@ -39,8 +33,8 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// --- NEW: Delete product ---
-router.delete("/:id", async (req, res) => {
+// Delete product (admin only)
+router.delete("/:id", protect, adminOnly, async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });

@@ -6,25 +6,44 @@ export default function Brands() {
   const [form, setForm] = useState({ name: "" });
   const [editingBrand, setEditingBrand] = useState(null);
 
+  // Get token from localStorage
+  const token = localStorage.getItem("token");
+
   useEffect(() => {
     fetchBrands();
   }, []);
 
   const fetchBrands = async () => {
-    const res = await axios.get("http://localhost:5000/api/brands");
-    setBrands(res.data);
+    try {
+      const res = await axios.get("http://localhost:5000/api/brands", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setBrands(res.data);
+    } catch (err) {
+      console.error("Error fetching brands:", err);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (editingBrand) {
-      await axios.put(`http://localhost:5000/api/brands/${editingBrand._id}`, form);
-      setEditingBrand(null);
-    } else {
-      await axios.post("http://localhost:5000/api/brands", form);
+    try {
+      if (editingBrand) {
+        await axios.put(
+          `http://localhost:5000/api/brands/${editingBrand._id}`,
+          form,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setEditingBrand(null);
+      } else {
+        await axios.post("http://localhost:5000/api/brands", form, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      setForm({ name: "" });
+      fetchBrands();
+    } catch (err) {
+      console.error("Error saving brand:", err);
     }
-    setForm({ name: "" });
-    fetchBrands();
   };
 
   const handleEdit = (brand) => {
@@ -34,8 +53,14 @@ export default function Brands() {
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this brand?")) return;
-    await axios.delete(`http://localhost:5000/api/brands/${id}`);
-    fetchBrands();
+    try {
+      await axios.delete(`http://localhost:5000/api/brands/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchBrands();
+    } catch (err) {
+      console.error("Error deleting brand:", err);
+    }
   };
 
   return (

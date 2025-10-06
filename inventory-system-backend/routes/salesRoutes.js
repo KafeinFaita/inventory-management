@@ -1,54 +1,60 @@
-// routes/salesRoutes.js
 import express from "express";
 import Sale from "../models/Sale.js";
 import Product from "../models/Product.js";
+import { protect, allowRoles } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Create a new sale
-router.post("/", async (req, res) => {
+// Get all sales (admin + staff can view)
+router.get("/", protect, allowRoles("admin", "staff"), async (req, res) => {
   try {
-    const { items } = req.body; // [{ product: id, quantity: number }]
-
-    if (!items || !items.length) {
-      return res.status(400).json({ error: "No items provided" });
-    }
-
-    // Fetch products and build sale items
-    const saleItems = [];
-    for (const { product, quantity } of items) {
-      const prod = await Product.findById(product);
-      if (!prod) return res.status(404).json({ error: "Product not found" });
-      if (prod.stock < quantity)
-        return res.status(400).json({ error: `Not enough stock for ${prod.name}` });
-
-      // Decrease stock
-      prod.stock -= quantity;
-      await prod.save();
-
-      saleItems.push({
-        product: prod._id,
-        quantity,
-        priceAtSale: prod.price,
-      });
-    }
-
-    // Save sale
-    const newSale = new Sale({ items: saleItems });
-    await newSale.save();
-
-    res.status(201).json(newSale);
+    const sales = await Sale.find()
+      .populate("user", "name email role")
+      .populate("items.product", "name price");
+    res.json(sales);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get all sales
-router.get("/", async (req, res) => {
+// Create sale (admin or staff)
+router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
   try {
-    const sales = await Sale.find().populate("items.product", "name price");
-    res.json(sales);
+    const { items } = req.body;
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: "No sale items provided" });
+    }
+
+    // Populate priceAtSale for each item
+    const itemsWithPrice = await Promise.all(
+      items.map(async (item) => {
+        const product = await Product.findById(item.product);
+        if (!product) throw new Error(`Product not found: ${item.product}`);
+        return {
+          product: item.product,
+          quantity: item.quantity,
+          priceAtSale: product.price, // capture current price
+        };
+      })
+    );
+
+    const sale = new Sale({
+      user: req.user._id, // assign logged-in user automatically
+      items: itemsWithPrice,
+    });
+
+    await sale.save();
+
+    // Populate before sending back
+    const savedSale = await Sale.findById(sale._id)
+      .populate("user", "name email role")
+      .populate("items.product", "name price");
+
+    res.status(201).json(savedSale);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });

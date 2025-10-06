@@ -6,25 +6,44 @@ export default function Categories() {
   const [form, setForm] = useState({ name: "" });
   const [editingCategory, setEditingCategory] = useState(null);
 
+  // Get token from localStorage
+  const token = localStorage.getItem("token");
+
   useEffect(() => {
     fetchCategories();
   }, []);
 
   const fetchCategories = async () => {
-    const res = await axios.get("http://localhost:5000/api/categories");
-    setCategories(res.data);
+    try {
+      const res = await axios.get("http://localhost:5000/api/categories", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCategories(res.data);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (editingCategory) {
-      await axios.put(`http://localhost:5000/api/categories/${editingCategory._id}`, form);
-      setEditingCategory(null);
-    } else {
-      await axios.post("http://localhost:5000/api/categories", form);
+    try {
+      if (editingCategory) {
+        await axios.put(
+          `http://localhost:5000/api/categories/${editingCategory._id}`,
+          form,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setEditingCategory(null);
+      } else {
+        await axios.post("http://localhost:5000/api/categories", form, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      setForm({ name: "" });
+      fetchCategories();
+    } catch (err) {
+      console.error("Error saving category:", err);
     }
-    setForm({ name: "" });
-    fetchCategories();
   };
 
   const handleEdit = (category) => {
@@ -34,8 +53,14 @@ export default function Categories() {
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this category?")) return;
-    await axios.delete(`http://localhost:5000/api/categories/${id}`);
-    fetchCategories();
+    try {
+      await axios.delete(`http://localhost:5000/api/categories/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchCategories();
+    } catch (err) {
+      console.error("Error deleting category:", err);
+    }
   };
 
   return (

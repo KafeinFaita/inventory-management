@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
+// ✅ Create Axios instance with token header
+const token = localStorage.getItem("token");
+const api = axios.create({
+  baseURL: "http://localhost:5000/api",
+  headers: { Authorization: `Bearer ${token}` },
+});
+
 export default function Inventory() {
   const [products, setProducts] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -22,30 +29,42 @@ export default function Inventory() {
   }, []);
 
   const fetchProducts = async () => {
-    const res = await axios.get("http://localhost:5000/api/products");
-    setProducts(res.data);
+    try {
+      const res = await api.get("/products");
+      setProducts(res.data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const fetchBrands = async () => {
-    const res = await axios.get("http://localhost:5000/api/brands");
-    setBrands(res.data);
+    try {
+      const res = await api.get("/brands");
+      setBrands(res.data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const fetchCategories = async () => {
-    const res = await axios.get("http://localhost:5000/api/categories");
-    setCategories(res.data);
+    try {
+      const res = await api.get("/categories");
+      setCategories(res.data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const showMessage = (msg) => {
     setSuccessMessage(msg);
-    setTimeout(() => setSuccessMessage(""), 3000); // disappears after 3 seconds
+    setTimeout(() => setSuccessMessage(""), 3000);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       if (editingId) {
-        await axios.put(`http://localhost:5000/api/products/${editingId}`, {
+        await api.put(`/products/${editingId}`, {
           name,
           brand,
           category,
@@ -55,7 +74,7 @@ export default function Inventory() {
         setEditingId(null);
         showMessage("Product updated successfully!");
       } else {
-        await axios.post("http://localhost:5000/api/products", {
+        await api.post("/products", {
           name,
           brand,
           category,
@@ -64,6 +83,7 @@ export default function Inventory() {
         });
         showMessage("Product added successfully!");
       }
+
       setName("");
       setBrand("");
       setCategory("");
@@ -87,7 +107,7 @@ export default function Inventory() {
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/products/${id}`);
+      await api.delete(`/products/${id}`);
       fetchProducts();
       showMessage("Product deleted successfully!");
     } catch (err) {
@@ -108,7 +128,6 @@ export default function Inventory() {
     <div className="space-y-8">
       <h1 className="text-3xl font-bold">Inventory</h1>
 
-      {/* Success message */}
       {successMessage && (
         <div className="alert alert-success shadow-lg mb-4">
           <div>
@@ -232,7 +251,6 @@ export default function Inventory() {
                   </button>
                 </td>
               </tr>
-
             ))}
             {products.length === 0 && (
               <tr>
@@ -247,4 +265,3 @@ export default function Inventory() {
     </div>
   );
 }
-

@@ -7,3 +7,14 @@ Content-Type: application/json
   "password": "password123",
   "role": "admin"
 }
+
+
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Staff User",
+  "email": "staff@example.com",
+  "password": "123456",
+  "role": "staff"
+}

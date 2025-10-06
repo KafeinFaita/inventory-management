@@ -3,20 +3,22 @@ import express from "express";
 import Product from "../models/Product.js";
 import Brand from "../models/Brand.js";
 import Category from "../models/Category.js";
-import Sale from "../models/Sale.js"; // ⬅️ import Sale model
+import Sale from "../models/Sale.js";
+import { protect } from "../middleware/authMiddleware.js"; // ✅ import middleware
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+// ✅ Protect the dashboard route
+router.get("/", protect, async (req, res) => {
   try {
     const totalProducts = await Product.countDocuments();
     const totalBrands = await Brand.countDocuments();
     const totalCategories = await Category.countDocuments();
 
-    // Low-stock alert: products with stock <= 5
+    // Low-stock alert
     const lowStockProducts = await Product.find({ stock: { $lte: 5 } }).select("name stock");
 
-    // 🧮 Monthly Sales Aggregation (items sold + total revenue)
+    // 🧮 Monthly Sales Aggregation
     const salesByMonth = await Sale.aggregate([
       {
         $group: {
@@ -28,7 +30,6 @@ router.get("/", async (req, res) => {
       { $sort: { "_id": 1 } },
     ]);
 
-    // Convert numeric months (1–12) to readable short names
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -52,4 +53,3 @@ router.get("/", async (req, res) => {
 });
 
 export default router;
-

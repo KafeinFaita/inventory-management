@@ -20,19 +20,24 @@ export default function DashboardLayout() {
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Get role from token
+  const token = localStorage.getItem("token");
+  let role = null;
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      role = payload.role; // "admin" or "staff"
+    } catch (err) {
+      console.error("Failed to decode token:", err);
+    }
+  }
+
   const toggleInventory = () => setInventoryOpen(!inventoryOpen);
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   const handleLogout = () => {
-    // Remove token
     localStorage.removeItem("token");
-
-    // Optional: clear any user-related state if you add one later
-
-    // Redirect to login
     navigate("/login");
-
-    // Close sidebar (for mobile)
     setSidebarOpen(false);
   };
 
@@ -72,48 +77,50 @@ export default function DashboardLayout() {
             </Link>
           </li>
 
-          {/* Inventory Section */}
-          <li>
-            <button
-              className="flex items-center space-x-3 p-2 w-full rounded-lg hover:bg-primary hover:text-white transition-colors duration-200"
-              onClick={toggleInventory}
-            >
-              <FaBoxes /> <span>Inventory</span>
-            </button>
-            {inventoryOpen && (
-              <ul className="pl-6 mt-1 space-y-1">
-                <li>
-                  <Link
-                    to="/inventory"
-                    className={linkClass("/inventory")}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <FaBoxes /> <span>Products</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/inventory/brands"
-                    className={linkClass("/inventory/brands")}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <FaTags /> <span>Brands</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/inventory/categories"
-                    className={linkClass("/inventory/categories")}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <FaLayerGroup /> <span>Categories</span>
-                  </Link>
-                </li>
-              </ul>
-            )}
-          </li>
+          {/* Inventory Section (admin only) */}
+          {role === "admin" && (
+            <li>
+              <button
+                className="flex items-center space-x-3 p-2 w-full rounded-lg hover:bg-primary hover:text-white transition-colors duration-200"
+                onClick={toggleInventory}
+              >
+                <FaBoxes /> <span>Inventory</span>
+              </button>
+              {inventoryOpen && (
+                <ul className="pl-6 mt-1 space-y-1">
+                  <li>
+                    <Link
+                      to="/inventory"
+                      className={linkClass("/inventory")}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <FaBoxes /> <span>Products</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/inventory/brands"
+                      className={linkClass("/inventory/brands")}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <FaTags /> <span>Brands</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/inventory/categories"
+                      className={linkClass("/inventory/categories")}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <FaLayerGroup /> <span>Categories</span>
+                    </Link>
+                  </li>
+                </ul>
+              )}
+            </li>
+          )}
 
-          {/* Other Sections */}
+          {/* Sales (all users) */}
           <li>
             <Link
               to="/sales"
@@ -123,17 +130,21 @@ export default function DashboardLayout() {
               <FaDollarSign /> <span>Sales</span>
             </Link>
           </li>
-          <li>
-            <Link
-              to="/settings"
-              className={linkClass("/settings")}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <FaCog /> <span>Settings</span>
-            </Link>
-          </li>
 
-          {/* User Profile & Logout */}
+          {/* Settings (admin only) */}
+          {role === "admin" && (
+            <li>
+              <Link
+                to="/settings"
+                className={linkClass("/settings")}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <FaCog /> <span>Settings</span>
+              </Link>
+            </li>
+          )}
+
+          {/* Profile & Logout */}
           <li className="mt-6 pt-4 border-t border-gray-700">
             <Link
               to="/profile"
@@ -154,7 +165,7 @@ export default function DashboardLayout() {
         </ul>
       </aside>
 
-      {/* Overlay for mobile when sidebar is open */}
+      {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-30 md:hidden"
@@ -162,7 +173,7 @@ export default function DashboardLayout() {
         ></div>
       )}
 
-      {/* Main Content */}
+      {/* Main content */}
       <main className="flex-1 p-6">
         <Outlet />
       </main>
