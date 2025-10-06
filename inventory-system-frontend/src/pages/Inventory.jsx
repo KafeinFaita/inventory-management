@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_URL } from "../config";
 
 // ✅ Create Axios instance with token header
 const token = localStorage.getItem("token");
 const api = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: `${API_URL}/api`,
   headers: { Authorization: `Bearer ${token}` },
 });
 

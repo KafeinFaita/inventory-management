@@ -1,5 +1,6 @@
 // src/pages/Sales/SaleForm.jsx
 import { useState, useEffect } from "react";
+import { API_URL } from "../config";
 
 export default function SaleForm({ onSuccess }) {
   const [products, setProducts] = useState([]);
@@ -9,7 +10,7 @@ export default function SaleForm({ onSuccess }) {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/products");
+        const res = await fetch(`${API_URL}/api/products`);
         const data = await res.json();
         setProducts(data);
       } catch (err) {
@@ -33,7 +34,7 @@ export default function SaleForm({ onSuccess }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/sales", {
+      const res = await fetch(`${API_URL}/api/sales`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),

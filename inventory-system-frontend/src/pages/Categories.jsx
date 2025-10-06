@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API_URL } from "../config";
 
 export default function Categories() {
   const [categories, setCategories] = useState([]);
@@ -15,7 +16,7 @@ export default function Categories() {
 
   const fetchCategories = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/categories", {
+      const res = await axios.get(`${API_URL}/api/categories`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCategories(res.data);
@@ -29,13 +30,13 @@ export default function Categories() {
     try {
       if (editingCategory) {
         await axios.put(
-          `http://localhost:5000/api/categories/${editingCategory._id}`,
+          `${API_URL}/api/categories/${editingCategory._id}`,
           form,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setEditingCategory(null);
       } else {
-        await axios.post("http://localhost:5000/api/categories", form, {
+        await axios.post(`${API_URL}/api/categories`, form, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
@@ -54,7 +55,7 @@ export default function Categories() {
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this category?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/categories/${id}`, {
+      await axios.delete(`${API_URL}/api/categories/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchCategories();

@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { FaBoxes, FaTags, FaLayerGroup, FaDollarSign, FaShoppingCart } from "react-icons/fa";
+import { API_URL } from "../config";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -29,7 +30,7 @@ export default function Dashboard() {
         const token = localStorage.getItem("token");
         if (!token) throw new Error("No token found, please login");
 
-        const res = await fetch("http://localhost:5000/api/dashboard", {
+        const res = await fetch(`${API_URL}/api/dashboard`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,

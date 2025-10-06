@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API_URL } from "../../config";
 
 export default function AddSale() {
   const [products, setProducts] = useState([]);
@@ -13,7 +14,7 @@ export default function AddSale() {
         const token = localStorage.getItem("token");
         if (!token) throw new Error("No token found, please login");
 
-        const res = await fetch("http://localhost:5000/api/products", {
+        const res = await fetch(`${API_URL}/api/products`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -52,7 +53,7 @@ export default function AddSale() {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("No token found, please login");
 
-      const res = await fetch("http://localhost:5000/api/sales", {
+      const res = await fetch(`${API_URL}/api/sales`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

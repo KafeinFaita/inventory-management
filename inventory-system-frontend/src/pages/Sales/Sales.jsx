@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SalesTable from "../../components/SalesTable";
+import { API_URL } from "../../config";
 
 export default function Sales() {
   const [sales, setSales] = useState([]);
@@ -11,7 +12,7 @@ useEffect(() => {
   const fetchSales = async () => {
     try {
       const token = localStorage.getItem("token"); // get JWT token
-      const res = await fetch("http://localhost:5000/api/sales", {
+      const res = await fetch(`${API_URL}/api/sales`, {
         headers: {
           Authorization: `Bearer ${token}`, // pass token in headers
         },

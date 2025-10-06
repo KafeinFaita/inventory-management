@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API_URL } from "../config";
 
 export default function Brands() {
   const [brands, setBrands] = useState([]);
@@ -15,7 +16,7 @@ export default function Brands() {
 
   const fetchBrands = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/brands", {
+      const res = await axios.get(`${API_URL}/api/brands`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setBrands(res.data);
@@ -29,7 +30,7 @@ export default function Brands() {
     try {
       if (editingBrand) {
         await axios.put(
-          `http://localhost:5000/api/brands/${editingBrand._id}`,
+          `${API_URL}/api/brands/${editingBrand._id}`,
           form,
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -54,7 +55,7 @@ export default function Brands() {
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this brand?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/brands/${id}`, {
+      await axios.delete(`${API_URL}/api/brands/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchBrands();
