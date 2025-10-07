@@ -1,96 +1,95 @@
-// src/pages/Users.jsx
-import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { API_URL } from "../../config";
 
-export default function Users() {
-  const [users, setUsers] = useState([]);
+export default function AddSale() {
+  const [products, setProducts] = useState([]);
+  const [items, setItems] = useState([{ product: "", quantity: 1, search: "" }]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [message, setMessage] = useState("");
 
-  // Sorting & Pagination
-  const [sortOption, setSortOption] = useState("name-asc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const USERS_PER_PAGE = 10;
+  // Fetch products
+  const fetchProducts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No token found, please login");
 
-  const navigate = useNavigate();
+      const res = await fetch(`${API_URL}/api/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error("No token found. Please log in.");
-
-        const res = await fetch(`${API_URL}/api/users`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch users: ${res.status} ${res.statusText}`);
-        }
-
-        const data = await res.json();
-        setUsers(data);
-      } catch (err) {
-        console.error(err);
-        setError(err.message || "Failed to load users.");
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch products: ${res.status} ${res.statusText}`);
       }
-    };
 
-    fetchUsers();
-  }, []);
-
-
-  const handleEdit = (userId) => {
-    navigate(`/users/edit/${userId}`);
+      const data = await res.json();
+      setProducts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Failed to load products.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Sorting logic
-  const sortedUsers = useMemo(() => {
-    const [key, order] = sortOption.split("-");
-    const sorted = [...users].sort((a, b) => {
-      let aVal, bVal;
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
-      switch (key) {
-        case "name":
-          aVal = a.name.toLowerCase();
-          bVal = b.name.toLowerCase();
-          break;
-        case "email":
-          aVal = a.email.toLowerCase();
-          bVal = b.email.toLowerCase();
-          break;
-        case "role":
-          aVal = a.role.toLowerCase();
-          bVal = b.role.toLowerCase();
-          break;
-        case "createdAt":
-          aVal = new Date(a.createdAt).getTime();
-          bVal = new Date(b.createdAt).getTime();
-          break;
-        default:
-          return 0;
-      }
+  const addItem = () => setItems([...items, { product: "", quantity: 1, search: "" }]);
+  const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
 
-      if (aVal < bVal) return order === "asc" ? -1 : 1;
-      if (aVal > bVal) return order === "asc" ? 1 : -1;
-      return 0;
-    });
+  const handleChange = (index, field, value) => {
+    const updated = [...items];
+    updated[index][field] = value;
+    setItems(updated);
+  };
 
-    return sorted;
-  }, [users, sortOption]);
+  const calculateTotal = () => {
+    return items.reduce((sum, item) => {
+      const prod = products.find((p) => p._id === item.product);
+      return sum + (prod ? prod.price * item.quantity : 0);
+    }, 0);
+  };
 
-  // Pagination logic
-  const totalPages = Math.ceil(sortedUsers.length / USERS_PER_PAGE);
-  const paginatedUsers = useMemo(() => {
-    const start = (currentPage - 1) * USERS_PER_PAGE;
-    return sortedUsers.slice(start, start + USERS_PER_PAGE);
-  }, [sortedUsers, currentPage]);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setMessage("");
 
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No token found, please login");
+
+      const res = await fetch(`${API_URL}/api/sales`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ items }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save sale");
+
+      setMessage("✅ Sale recorded successfully!");
+      setItems([{ product: "", quantity: 1, search: "" }]);
+
+      // Refresh product list to reflect updated stock
+      await fetchProducts();
+    } catch (err) {
+      console.error(err);
+      setMessage("❌ " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 🔄 Loading state for product fetch
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -99,15 +98,13 @@ export default function Users() {
     );
   }
 
+  // ❌ Error state (with retry)
   if (error) {
     return (
-      <div className="alert alert-error shadow-lg">
-        <div>
+      <div className="alert alert-error shadow-lg max-w-xl mx-auto mt-10">
+        <div className="flex justify-between items-center w-full">
           <span>{error}</span>
-          <button
-            className="btn btn-sm btn-primary ml-4"
-            onClick={() => window.location.reload()}
-          >
+          <button className="btn btn-sm btn-primary" onClick={fetchProducts}>
             Retry
           </button>
         </div>
@@ -116,109 +113,117 @@ export default function Users() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 w-full">
-      <h1 className="text-3xl md:text-4xl font-bold">Users</h1>
+    <div className="p-4 md:p-6 space-y-6">
+      <h1 className="text-3xl font-bold mb-4">Add Sale</h1>
 
-      {/* Sort Dropdown */}
-      <div className="flex justify-end mb-4">
-        <select
-          className="select select-bordered w-56"
-          value={sortOption}
-          onChange={(e) => {
-            setSortOption(e.target.value);
-            setCurrentPage(1); // reset to first page on sort
-          }}
+      {message && (
+        <div
+          className={`alert shadow-md ${
+            message.startsWith("✅")
+              ? "alert-success"
+              : message.startsWith("❌")
+              ? "alert-error"
+              : "alert-info"
+          }`}
         >
-          <option value="name-asc">Name ↑</option>
-          <option value="name-desc">Name ↓</option>
-          <option value="email-asc">Email ↑</option>
-          <option value="email-desc">Email ↓</option>
-          <option value="role-asc">Role ↑</option>
-          <option value="role-desc">Role ↓</option>
-          <option value="createdAt-asc">Created Date ↑</option>
-          <option value="createdAt-desc">Created Date ↓</option>
-        </select>
-      </div>
-
-      {users.length === 0 ? (
-        <p className="text-center text-gray-500 mt-8">No users found.</p>
-      ) : (
-        <div className="overflow-x-auto bg-base-200 p-4 rounded-lg shadow max-w-full">
-          <table className="table table-zebra w-full min-w-[600px]">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Created At</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedUsers.map((user) => (
-                <tr key={user._id}>
-                  <td className="break-words max-w-[150px]">{user.name}</td>
-                  <td className="break-words max-w-[200px]">{user.email}</td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        user.role === "admin" ? "badge-primary" : "badge-accent"
-                      }`}
-                    >
-                      {user.role}
-                    </span>
-                  </td>
-                  <td>{new Date(user.createdAt).toLocaleDateString()}</td>
-                  <td>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className="btn btn-sm btn-warning"
-                        onClick={() => handleEdit(user._id)}
-                      >
-                        Edit
-                      </button>
-                      <button className="btn btn-sm btn-error">Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-4 flex-wrap">
-              <button
-                className="btn btn-sm"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => (
-                <button
-                  key={i}
-                  className={`btn btn-sm ${
-                    currentPage === i + 1 ? "btn-primary" : "btn-ghost"
-                  }`}
-                  onClick={() => setCurrentPage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              ))}
-              <button
-                className="btn btn-sm"
-                disabled={currentPage === totalPages}
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                }
-              >
-                Next
-              </button>
-            </div>
-          )}
+          <span>{message}</span>
         </div>
       )}
+
+      <form onSubmit={handleSubmit} className="space-y-4 bg-base-200 p-4 rounded-lg shadow">
+        {items.map((item, index) => {
+          const filteredProducts = products.filter((p) =>
+            p.name.toLowerCase().includes(item.search.toLowerCase())
+          );
+          const selectedProduct = products.find((p) => p._id === item.product);
+
+          return (
+            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              {/* Product search + select */}
+              <div>
+                <label className="block font-semibold mb-1">Product</label>
+                <input
+                  type="text"
+                  placeholder="Search product..."
+                  value={item.search}
+                  onChange={(e) => handleChange(index, "search", e.target.value)}
+                  className="input input-bordered w-full mb-1"
+                  disabled={isSubmitting}
+                />
+                <select
+                  value={item.product}
+                  onChange={(e) => handleChange(index, "product", e.target.value)}
+                  required
+                  className="select select-bordered w-full"
+                  disabled={isSubmitting}
+                >
+                  <option value="">Select Product</option>
+                  {filteredProducts.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} — ₱{p.price} ({p.stock} in stock)
+                    </option>
+                  ))}
+                </select>
+                {selectedProduct && (
+                  <div className="mt-1 text-sm text-gray-600">
+                    Price: ₱{selectedProduct.price}, Stock: {selectedProduct.stock}, Brand:{" "}
+                    {selectedProduct.brand || "N/A"}
+                  </div>
+                )}
+              </div>
+
+              {/* Quantity */}
+              <div>
+                <label className="block font-semibold mb-1">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={item.quantity}
+                  onChange={(e) => handleChange(index, "quantity", parseInt(e.target.value))}
+                  required
+                  className="input input-bordered w-full"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {/* Remove button */}
+              <div className="flex justify-end md:justify-start">
+                {items.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeItem(index)}
+                    className="btn btn-error btn-sm mt-6"
+                    disabled={isSubmitting}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={addItem}
+          className="btn btn-outline btn-primary"
+          disabled={isSubmitting}
+        >
+          + Add Another Item
+        </button>
+
+        <div className="text-right font-semibold text-lg mt-4">
+          Total: ₱{calculateTotal().toLocaleString()}
+        </div>
+
+        <button
+          type="submit"
+          className={`btn btn-primary w-full mt-4 ${isSubmitting ? "loading" : ""}`}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Recording Sale..." : "Record Sale"}
+        </button>
+      </form>
     </div>
   );
 }
