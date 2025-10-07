@@ -131,6 +131,20 @@ export default function DashboardLayout() {
             </Link>
           </li>
 
+          {/* Users (admin only) */}
+          {role === "admin" && (
+            <li>
+              <Link
+                to="/users"
+                className={linkClass("/users")}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <FaUser /> <span>Users</span>
+              </Link>
+            </li>
+          )}
+
+
           {/* Settings (admin only) */}
           {role === "admin" && (
             <li>

@@ -8,6 +8,7 @@ import Settings from "./pages/Settings";
 import Brands from "./pages/Brands";
 import Categories from "./pages/Categories";
 import Login from "./pages/auth/Login";
+import Users from "./pages/Users";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const router = createBrowserRouter([
@@ -48,10 +49,11 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <Inventory /> },
               { path: "brands", element: <Brands /> },
-              { path: "categories", element: <Categories /> },
+              { path: "categories", element: <Categories /> }
             ],
           },
           { path: "settings", element: <Settings /> },
+          { path: "users", element: <Users /> },
         ],
       },
     ],
