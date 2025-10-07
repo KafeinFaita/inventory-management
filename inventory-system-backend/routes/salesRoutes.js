@@ -27,19 +27,34 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
       return res.status(400).json({ error: "No sale items provided" });
     }
 
-    // Populate priceAtSale for each item
+    // Populate priceAtSale and check stock
     const itemsWithPrice = await Promise.all(
       items.map(async (item) => {
         const product = await Product.findById(item.product);
         if (!product) throw new Error(`Product not found: ${item.product}`);
+
+        if (product.stock < item.quantity) {
+          throw new Error(
+            `Not enough stock for ${product.name}. Available: ${product.stock}`
+          );
+        }
+
         return {
           product: item.product,
           quantity: item.quantity,
-          priceAtSale: product.price, // capture current price
+          priceAtSale: product.price,
         };
       })
     );
 
+    // Deduct stock
+    for (const item of itemsWithPrice) {
+      await Product.findByIdAndUpdate(item.product, {
+        $inc: { stock: -item.quantity },
+      });
+    }
+
+    // Create sale
     const sale = new Sale({
       user: req.user._id, // assign logged-in user automatically
       items: itemsWithPrice,
@@ -59,8 +74,4 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
   }
 });
 
-
-
-
 export default router;
-

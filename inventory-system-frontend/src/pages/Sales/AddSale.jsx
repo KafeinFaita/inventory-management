@@ -4,24 +4,37 @@ import { API_URL } from "../../config";
 export default function AddSale() {
   const [products, setProducts] = useState([]);
   const [items, setItems] = useState([{ product: "", quantity: 1, search: "" }]);
+  const [isFetching, setIsFetching] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [alert, setAlert] = useState({ type: "", message: "" });
 
   // Fetch products
   useEffect(() => {
     const fetchProducts = async () => {
+      setIsFetching(true);
       try {
         const token = localStorage.getItem("token");
-        if (!token) throw new Error("No token found, please login");
+        if (!token) throw new Error("No token found. Please log in again.");
 
         const res = await fetch(`${API_URL}/api/products`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
+        if (!res.ok) throw new Error(`Failed to load products (${res.status})`);
+
         const data = await res.json();
-        setProducts(Array.isArray(data) ? data : []);
+        if (!Array.isArray(data)) throw new Error("Unexpected response from server");
+
+        if (data.length === 0) {
+          setAlert({ type: "info", message: "No products available yet." });
+        }
+
+        setProducts(data);
       } catch (err) {
         console.error(err);
-        setMessage("❌ " + err.message);
+        setAlert({ type: "error", message: err.message });
+      } finally {
+        setIsFetching(false);
       }
     };
 
@@ -30,7 +43,6 @@ export default function AddSale() {
 
   const addItem = () => setItems([...items, { product: "", quantity: 1, search: "" }]);
   const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
-
   const handleChange = (index, field, value) => {
     const updated = [...items];
     updated[index][field] = value;
@@ -47,11 +59,11 @@ export default function AddSale() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setMessage("");
+    setAlert({ type: "", message: "" });
 
     try {
       const token = localStorage.getItem("token");
-      if (!token) throw new Error("No token found, please login");
+      if (!token) throw new Error("No token found. Please log in again.");
 
       const res = await fetch(`${API_URL}/api/sales`, {
         method: "POST",
@@ -59,46 +71,76 @@ export default function AddSale() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ items }), // backend assigns user automatically
+        body: JSON.stringify({ items }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save sale");
 
-      setMessage("✅ Sale recorded successfully!");
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to record sale");
+      }
+
+      // Success
+      setAlert({ type: "success", message: "Sale recorded successfully!" });
+
+      // Update local stock immediately
+      const updatedProducts = [...products];
+      items.forEach((item) => {
+        const prod = updatedProducts.find((p) => p._id === item.product);
+        if (prod) prod.stock -= item.quantity;
+      });
+      setProducts(updatedProducts);
+
+      // Reset form
       setItems([{ product: "", quantity: 1, search: "" }]);
     } catch (err) {
       console.error(err);
-      setMessage("❌ " + err.message);
+      setAlert({ type: "error", message: err.message });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // 🔄 Loading spinner for page load
+  if (isFetching) {
+    return (
+      <div className="flex flex-col items-center justify-center h-80 space-y-4">
+        <span className="loading loading-spinner loading-lg text-primary"></span>
+        <p className="text-gray-600">Loading products...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <h1 className="text-3xl font-bold mb-4">Add Sale</h1>
 
-      {message && (
+      {/* 🧾 Alerts */}
+      {alert.message && (
         <div
-          className={`text-center font-semibold ${
-            message.startsWith("✅") ? "text-green-600" : "text-red-600"
-          }`}
+          className={`alert ${
+            alert.type === "error"
+              ? "alert-error"
+              : alert.type === "success"
+              ? "alert-success"
+              : "alert-info"
+          } shadow-md`}
         >
-          {message}
+          <span>{alert.message}</span>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4 bg-base-200 p-4 rounded-lg shadow">
         {items.map((item, index) => {
-          const filteredProducts = products.filter((p) =>
-            p.name.toLowerCase().includes(item.search.toLowerCase())
+          const filteredProducts = products.filter(
+            (p) =>
+              p.name.toLowerCase().includes(item.search.toLowerCase()) && p.stock > 0
           );
           const selectedProduct = products.find((p) => p._id === item.product);
 
           return (
             <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              {/* Searchable product input */}
+              {/* Product Search */}
               <div>
                 <label className="block font-semibold mb-1">Product</label>
                 <input
@@ -123,7 +165,7 @@ export default function AddSale() {
                 </select>
                 {selectedProduct && (
                   <div className="mt-1 text-sm text-gray-600">
-                    Price: ₱{selectedProduct.price}, Stock: {selectedProduct.stock}, Brand: {selectedProduct.brand || "N/A"}
+                    Price: ₱{selectedProduct.price} | Stock: {selectedProduct.stock}
                   </div>
                 )}
               </div>
@@ -134,14 +176,22 @@ export default function AddSale() {
                 <input
                   type="number"
                   min="1"
+                  max={selectedProduct ? selectedProduct.stock : 1}
                   value={item.quantity}
-                  onChange={(e) => handleChange(index, "quantity", parseInt(e.target.value))}
+                  onChange={(e) =>
+                    handleChange(
+                      index,
+                      "quantity",
+                      Math.min(parseInt(e.target.value), selectedProduct?.stock || 1)
+                    )
+                  }
                   required
                   className="input input-bordered w-full"
+                  disabled={!selectedProduct}
                 />
               </div>
 
-              {/* Remove button */}
+              {/* Remove Item */}
               <div className="flex justify-end md:justify-start">
                 {items.length > 1 && (
                   <button

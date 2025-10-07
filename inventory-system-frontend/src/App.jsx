@@ -8,7 +8,8 @@ import Settings from "./pages/Settings";
 import Brands from "./pages/Brands";
 import Categories from "./pages/Categories";
 import Login from "./pages/auth/Login";
-import Users from "./pages/Users";
+import Users from "./pages/users/Users";
+import EditUser from "./pages/users/EditUser";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const router = createBrowserRouter([
@@ -53,7 +54,13 @@ const router = createBrowserRouter([
             ],
           },
           { path: "settings", element: <Settings /> },
-          { path: "users", element: <Users /> },
+          {
+            path: "users",
+            children: [
+              { index: true, element: <Users /> },
+              { path: "edit/:id", element: <EditUser /> }, // edit page
+            ],
+          }
         ],
       },
     ],

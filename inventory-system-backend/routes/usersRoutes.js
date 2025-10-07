@@ -41,6 +41,17 @@ router.post("/", protect, adminOnly, async (req, res) => {
   }
 });
 
+// GET single user by ID
+router.get("/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PUT update user
 router.put("/:id", protect, adminOnly, async (req, res) => {
   try {

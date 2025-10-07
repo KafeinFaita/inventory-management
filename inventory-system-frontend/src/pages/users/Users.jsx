@@ -1,6 +1,7 @@
 // src/pages/Users.jsx
 import { useEffect, useState, useMemo } from "react";
-import { API_URL } from "../config";
+import { useNavigate } from "react-router-dom";
+import { API_URL } from "../../config";
 
 export default function Users() {
   const [users, setUsers] = useState([]);
@@ -11,6 +12,8 @@ export default function Users() {
   const [sortOption, setSortOption] = useState("name-asc");
   const [currentPage, setCurrentPage] = useState(1);
   const USERS_PER_PAGE = 10;
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -40,6 +43,11 @@ export default function Users() {
 
     fetchUsers();
   }, []);
+
+
+  const handleEdit = (userId) => {
+    navigate(`/users/edit/${userId}`);
+  };
 
   // Sorting logic
   const sortedUsers = useMemo(() => {
@@ -163,7 +171,12 @@ export default function Users() {
                   <td>{new Date(user.createdAt).toLocaleDateString()}</td>
                   <td>
                     <div className="flex flex-wrap gap-2">
-                      <button className="btn btn-sm btn-warning">Edit</button>
+                      <button
+                        className="btn btn-sm btn-warning"
+                        onClick={() => handleEdit(user._id)}
+                      >
+                        Edit
+                      </button>
                       <button className="btn btn-sm btn-error">Delete</button>
                     </div>
                   </td>
