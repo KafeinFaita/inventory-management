@@ -36,7 +36,7 @@ export default function Brands() {
         );
         setEditingBrand(null);
       } else {
-        await axios.post("http://localhost:5000/api/brands", form, {
+        await axios.post(`${API_URL}/api/brands`, form, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
