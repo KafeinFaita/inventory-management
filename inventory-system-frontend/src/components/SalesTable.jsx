@@ -1,5 +1,6 @@
 // src/components/SalesTable.jsx
 import { useState, useMemo } from "react";
+import {generatePDF} from "../utils/generatePDF";
 
 export default function SalesTable({ sales = [] }) {
   const [search, setSearch] = useState("");
@@ -125,32 +126,43 @@ export default function SalesTable({ sales = [] }) {
             <th>Items</th>
             <th>Total Quantity</th>
             <th>Total Amount (₱)</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {paginatedSales.map((sale) => {
-    const totalQuantity = sale.items.reduce((sum, i) => sum + i.quantity, 0);
-    const totalAmount = sale.items.reduce(
-      (sum, i) => sum + i.priceAtSale * i.quantity,
-      0
-    );
+            const totalQuantity = sale.items.reduce((sum, i) => sum + i.quantity, 0);
+            const totalAmount = sale.items.reduce(
+              (sum, i) => sum + i.priceAtSale * i.quantity,
+              0
+            );
 
-    return (
-      <tr key={sale._id}>
-        <td>{new Date(sale.createdAt).toLocaleDateString()}</td>
-        <td>{sale.user?.name || "N/A"}</td>
-        <td className="flex flex-wrap gap-1">
-          {sale.items.map((i) => (
-            <span
-              key={i.product?._id || i._id}
-              className="badge badge-sm badge-primary"
-            >
-              {i.product?.name || "Unknown"} × {i.quantity}
-            </span>
-          ))}
+            return (
+              <tr key={sale._id}>
+                <td>{new Date(sale.createdAt).toLocaleDateString()}</td>
+                <td>{sale.user?.name || "N/A"}</td>
+                <td className="flex flex-wrap gap-1">
+                  {sale.items.map((i, idx) => (
+          <span
+            key={`${sale._id}-${i.product?._id || i._id || idx}`}
+            className="badge badge-sm badge-primary"
+          >
+            {i.product?.name || "Unknown"} × {i.quantity}
+          </span>
+        ))}
+
         </td>
         <td>{totalQuantity}</td>
         <td className="font-bold text-success">₱{totalAmount.toLocaleString()}</td>
+        <td>
+          <button
+            onClick={() => generatePDF(sale)}
+            className="btn btn-xs btn-outline btn-primary"
+          >
+            View Invoice
+          </button>
+        </td>
+
       </tr>
     );
   })}
