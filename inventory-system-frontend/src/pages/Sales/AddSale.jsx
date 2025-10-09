@@ -109,93 +109,15 @@ export default function AddSale() {
     }
   };
 
-  // 🧾 Generate PDF Invoice
-// const generatePDF = (sale) => {
-//   try {
-//     const doc = new jsPDF();
-//     const pageWidth = doc.internal.pageSize.getWidth();
-//     const invoiceId = generateInvoiceId();
-
-//     // 🧾 Validate and normalize data
-//     if (!sale) throw new Error("No sale data provided.");
-//     const saleId = sale._id || "N/A";
-//     const saleDate = sale.createdAt
-//       ? new Date(sale.createdAt).toLocaleString()
-//       : new Date().toLocaleString();
-//     const staffName = sale.user?.name || "Unknown Staff";
-//     const items = Array.isArray(sale.items) ? sale.items : [];
-
-//     // ---- HEADER ----
-//     doc.setFontSize(18);
-//     doc.text("INVOICE", pageWidth / 2, 20, { align: "center" });
-
-//     doc.setFontSize(12);
-    
-//     doc.text(`Invoice: ${invoiceId}`, 14, 20);
-//     doc.text(`Date: ${saleDate}`, 14, 42);
-
-//     // ---- STAFF INFO ----
-//     doc.text("Processed by:", 14, 55);
-//     doc.text(staffName, 45, 55);
-
-//     // ---- TABLE ----
-//     const tableData = items.map((item) => {
-//       const productName = item.product?.name || "Unknown Product";
-//       const quantity = item.quantity ?? 0;
-//       const unitPrice = typeof item.priceAtSale === "number" ? item.priceAtSale : 0;
-//       const total = unitPrice * quantity;
-
-//       return [
-//         productName,
-//         quantity,
-//         `P${unitPrice.toFixed(2)}`,
-//         `P${total.toFixed(2)}`
-//       ];
-//     });
-
-//     autoTable(doc, {
-//       startY: 70,
-//       head: [["Product", "Qty", "Unit Price", "Total"]],
-//       body: tableData,
-//       theme: "striped",
-//       headStyles: { fillColor: [41, 128, 185] },
-//       styles: { halign: "center" },
-//     });
-
-//     // ---- TOTAL ----
-//     const totalAmount =
-//       typeof sale.totalAmount === "number"
-//         ? sale.totalAmount
-//         : items.reduce((sum, i) => sum + (i.priceAtSale || 0) * (i.quantity || 0), 0);
-
-//     const finalY = doc.lastAutoTable.finalY + 10;
-//     doc.setFontSize(14);
-//     doc.text(`Grand Total: P${totalAmount.toFixed(2)}`, pageWidth - 14, finalY, {
-//       align: "right",
-//     });
-
-//     // ---- FOOTER ----
-//     doc.setFontSize(10);
-//     doc.text("Thank you for your purchase!", pageWidth / 2, finalY + 20, {
-//       align: "center",
-//     });
-
-//     // ---- SAVE ----
-//     window.open(doc.output("bloburl"), "_blank");
-//   } catch (error) {
-//     console.error("Error generating invoice:", error);
-//   }
-// };
-
-
-  // 🌀 Loading state
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <span className="loading loading-spinner text-primary loading-lg"></span>
-      </div>
-    );
-  }
+// 🌀 Loading state
+if (loading) {
+  return (
+    <div className="flex justify-center items-center h-64">
+      <span className="loading loading-spinner loading-lg text-primary"></span>
+      <span className="ml-3 text-lg text-gray-600">Loading products...</span>
+    </div>
+  );
+}
 
   // ⚠️ Error + Retry
   if (error) {
