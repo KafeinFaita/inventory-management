@@ -9,13 +9,14 @@ import Brands from "./pages/Brands";
 import Categories from "./pages/Categories";
 import Login from "./pages/auth/Login";
 import Users from "./pages/users/Users";
+import AddUser from "./pages/users/AddUser";
 import EditUser from "./pages/users/EditUser";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
 
-  // All dashboard routes require login
+  // Staff + Admin routes
   {
     element: <ProtectedRoute allowedRoles={["admin", "staff"]} />,
     children: [
@@ -45,22 +46,26 @@ const router = createBrowserRouter([
         path: "/",
         element: <DashboardLayout />,
         children: [
+          // Inventory routes
           {
             path: "inventory",
             children: [
               { index: true, element: <Inventory /> },
               { path: "brands", element: <Brands /> },
-              { path: "categories", element: <Categories /> }
+              { path: "categories", element: <Categories /> },
             ],
           },
-          { path: "settings", element: <Settings /> },
+          // Users routes
           {
             path: "users",
             children: [
               { index: true, element: <Users /> },
-              { path: "edit/:id", element: <EditUser /> }, // edit page
+              { path: "add", element: <AddUser /> },
+              { path: "edit/:id", element: <EditUser /> },
             ],
-          }
+          },
+          // Settings route
+          { path: "settings", element: <Settings /> },
         ],
       },
     ],

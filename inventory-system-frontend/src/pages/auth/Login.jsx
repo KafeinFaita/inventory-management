@@ -1,41 +1,53 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../config";
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
+    if (!email.trim() || !password.trim()) {
+      setError("Email and password cannot be empty.");
+      return;
+    }
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setLoading(true);
+
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Login failed");
+        setError(data.error || "Login failed. Please try again.");
         return;
       }
 
-      // Save token to localStorage
       localStorage.setItem("token", data.token);
-
-      // Redirect to dashboard
       navigate("/");
     } catch (err) {
-      setError("Server error. Please try again later.");
       console.error(err);
+      setError("Server error. Please try again later.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,8 +57,11 @@ export default function Login() {
         <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
 
         {error && (
-          <div className="alert alert-error mb-4">
+          <div className="alert alert-error mb-4 flex justify-between items-center">
             <span>{error}</span>
+            <button className="btn btn-sm btn-primary" onClick={() => setError("")}>
+              X
+            </button>
           </div>
         )}
 
@@ -62,25 +77,38 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={loading}
             />
           </div>
 
-          <div className="form-control w-full">
+          <div className="form-control w-full relative">
             <label className="label">
               <span className="label-text">Password</span>
             </label>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="********"
-              className="input input-bordered w-full"
+              className="input input-bordered w-full pr-12"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={loading}
             />
+            <button
+              type="button"
+              className="absolute right-3 top-9 text-gray-500"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <AiFillEyeInvisible size={20} /> : <AiFillEye size={20} />}
+            </button>
           </div>
 
-          <button type="submit" className="btn btn-primary w-full mt-4">
-            Login
+          <button
+            type="submit"
+            className={`btn btn-primary w-full mt-4 ${loading ? "loading" : ""}`}
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
       </div>
