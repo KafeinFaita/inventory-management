@@ -1,6 +1,6 @@
 // src/components/SalesTable.jsx
 import { useState, useMemo } from "react";
-import {generatePDF} from "../utils/generatePDF";
+import { generatePDF } from "../utils/generatePDF";
 
 export default function SalesTable({ sales = [] }) {
   const [search, setSearch] = useState("");
@@ -10,19 +10,16 @@ export default function SalesTable({ sales = [] }) {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
-  // Apply search and filters
+  // 🔍 Filter and sort
   const filteredSales = useMemo(() => {
     return sales
       .filter((sale) => {
-        // Month filter
         const monthMatch = filterMonth
           ? new Date(sale.createdAt).getMonth() + 1 === Number(filterMonth)
           : true;
-        // Year filter
         const yearMatch = filterYear
           ? new Date(sale.createdAt).getFullYear() === Number(filterYear)
           : true;
-        // Search filter (search in product names and user name)
         const searchLower = search.toLowerCase();
         const matchesSearch =
           sale.user?.name?.toLowerCase().includes(searchLower) ||
@@ -44,40 +41,56 @@ export default function SalesTable({ sales = [] }) {
           case "quantity":
             const totalA = a.items.reduce((sum, i) => sum + i.quantity, 0);
             const totalB = b.items.reduce((sum, i) => sum + i.quantity, 0);
-            return totalB - totalA; // descending
+            return totalB - totalA;
           case "amount":
-            const amountA = a.items.reduce((sum, i) => sum + i.priceAtSale * i.quantity, 0);
-            const amountB = b.items.reduce((sum, i) => sum + i.priceAtSale * i.quantity, 0);
-            return amountB - amountA; // descending
+            const amountA = a.items.reduce(
+              (sum, i) => sum + i.priceAtSale * i.quantity,
+              0
+            );
+            const amountB = b.items.reduce(
+              (sum, i) => sum + i.priceAtSale * i.quantity,
+              0
+            );
+            return amountB - amountA;
           default:
             return 0;
         }
       });
   }, [sales, search, filterMonth, filterYear, sortBy]);
 
-  // Pagination
+  // 📄 Pagination
   const totalPages = Math.ceil(filteredSales.length / ITEMS_PER_PAGE);
   const paginatedSales = filteredSales.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
+  // ⚙️ PDF handler
+  const handleViewInvoice = (sale) => {
+    try {
+      generatePDF(sale);
+    } catch (err) {
+      console.error("Error generating invoice:", err);
+      alert("Failed to generate invoice. Please try again.");
+    }
+  };
+
   return (
-    <div className="overflow-x-auto bg-base-200 p-4 rounded-lg shadow">
+    <div className="bg-base-200 p-4 rounded-lg shadow w-full">
       {/* Controls */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
-        <div className="flex flex-wrap gap-2 items-center">
+      <div className="overflow-x-auto mb-4">
+        <div className="flex flex-wrap gap-2 items-center min-w-full">
           <input
             type="text"
             placeholder="Search by product or user..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="input input-bordered input-sm w-full md:w-64"
+            className="input input-bordered input-sm flex-1 min-w-0"
           />
           <select
             value={filterMonth}
             onChange={(e) => setFilterMonth(e.target.value)}
-            className="select select-bordered select-sm"
+            className="select select-bordered select-sm flex-shrink-0"
           >
             <option value="">All Months</option>
             {Array.from({ length: 12 }, (_, i) => (
@@ -89,7 +102,7 @@ export default function SalesTable({ sales = [] }) {
           <select
             value={filterYear}
             onChange={(e) => setFilterYear(e.target.value)}
-            className="select select-bordered select-sm"
+            className="select select-bordered select-sm flex-shrink-0"
           >
             <option value="">All Years</option>
             {Array.from(
@@ -102,72 +115,87 @@ export default function SalesTable({ sales = [] }) {
                 </option>
               ))}
           </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="select select-bordered select-sm flex-shrink-0"
+          >
+            <option value="dateDesc">Date (Newest)</option>
+            <option value="dateAsc">Date (Oldest)</option>
+            <option value="alpha">Product Name (A-Z)</option>
+            <option value="quantity">Total Quantity Sold</option>
+            <option value="amount">Total Amount Sold</option>
+          </select>
         </div>
-
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="select select-bordered select-sm"
-        >
-          <option value="dateDesc">Date (Newest)</option>
-          <option value="dateAsc">Date (Oldest)</option>
-          <option value="alpha">Product Name (A-Z)</option>
-          <option value="quantity">Total Quantity Sold</option>
-          <option value="amount">Total Amount Sold</option>
-        </select>
       </div>
 
       {/* Table */}
-      <table className="table table-zebra table-compact w-full">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>User</th>
-            <th>Items</th>
-            <th>Total Quantity</th>
-            <th>Total Amount (₱)</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {paginatedSales.map((sale) => {
-            const totalQuantity = sale.items.reduce((sum, i) => sum + i.quantity, 0);
-            const totalAmount = sale.items.reduce(
-              (sum, i) => sum + i.priceAtSale * i.quantity,
-              0
-            );
+      <div className="overflow-x-auto">
+        <p className="text-sm text-gray-500 mb-2 md:hidden text-center">
+          Swipe horizontally to see all columns →
+        </p>
+        <table className="table table-zebra table-compact w-full min-w-max">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>User</th>
+              <th>Items</th>
+              <th>Total Quantity</th>
+              <th>Total Amount (₱)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedSales.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="text-center text-gray-500 py-4">
+                  No sales found for the selected filters.
+                </td>
+              </tr>
+            ) : (
+              paginatedSales.map((sale) => {
+                const totalQuantity = sale.items.reduce(
+                  (sum, i) => sum + i.quantity,
+                  0
+                );
+                const totalAmount = sale.items.reduce(
+                  (sum, i) => sum + i.priceAtSale * i.quantity,
+                  0
+                );
 
-            return (
-              <tr key={sale._id}>
-                <td>{new Date(sale.createdAt).toLocaleDateString()}</td>
-                <td>{sale.user?.name || "N/A"}</td>
-                <td className="flex flex-wrap gap-1">
-                  {sale.items.map((i, idx) => (
-          <span
-            key={`${sale._id}-${i.product?._id || i._id || idx}`}
-            className="badge badge-sm badge-primary"
-          >
-            {i.product?.name || "Unknown"} × {i.quantity}
-          </span>
-        ))}
-
-        </td>
-        <td>{totalQuantity}</td>
-        <td className="font-bold text-success">₱{totalAmount.toLocaleString()}</td>
-        <td>
-          <button
-            onClick={() => generatePDF(sale)}
-            className="btn btn-xs btn-outline btn-primary"
-          >
-            View Invoice
-          </button>
-        </td>
-
-      </tr>
-    );
-  })}
-        </tbody>
-      </table>
+                return (
+                  <tr key={sale._id}>
+                    <td>{new Date(sale.createdAt).toLocaleDateString()}</td>
+                    <td>{sale.user?.name || "N/A"}</td>
+                    <td className="flex flex-wrap gap-1 max-w-xs">
+                      {sale.items.map((i, idx) => (
+                        <span
+                          key={`${sale._id}-${i.product?._id || i._id || idx}`}
+                          className="badge badge-sm badge-primary truncate"
+                        >
+                          {i.product?.name || "Unknown"} × {i.quantity}
+                        </span>
+                      ))}
+                    </td>
+                    <td>{totalQuantity}</td>
+                    <td className="font-bold text-success">
+                      ₱{totalAmount.toLocaleString()}
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn-sm btn-outline btn-primary"
+                        onClick={() => handleViewInvoice(sale)}
+                      >
+                        View Invoice
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -182,7 +210,9 @@ export default function SalesTable({ sales = [] }) {
           {Array.from({ length: totalPages }, (_, i) => (
             <button
               key={i + 1}
-              className={`btn btn-sm ${currentPage === i + 1 ? "btn-active" : ""}`}
+              className={`btn btn-sm ${
+                currentPage === i + 1 ? "btn-active" : ""
+              }`}
               onClick={() => setCurrentPage(i + 1)}
             >
               {i + 1}

@@ -47,7 +47,7 @@ export default function DashboardLayout() {
       : "flex items-center space-x-3 p-2 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200";
 
   return (
-    <div className="flex min-h-screen bg-gray-100 font-sans">
+    <div className="flex min-h-screen bg-gray-100 font-sans overflow-x-hidden">
       {/* Mobile Hamburger */}
       <div className="md:hidden absolute top-4 left-4 z-50">
         <button onClick={toggleSidebar} className="btn btn-square btn-ghost">
@@ -144,7 +144,6 @@ export default function DashboardLayout() {
             </li>
           )}
 
-
           {/* Settings (admin only) */}
           {role === "admin" && (
             <li>
@@ -188,7 +187,7 @@ export default function DashboardLayout() {
       )}
 
       {/* Main content */}
-      <main className="flex-1 p-6">
+      <main className="flex-1 min-w-0 p-6">
         <Outlet />
       </main>
     </div>

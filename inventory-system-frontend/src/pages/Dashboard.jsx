@@ -1,3 +1,4 @@
+// src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
 import {
   BarChart,
@@ -43,11 +44,6 @@ export default function Dashboard() {
 
         const data = await res.json();
 
-        // Validate data
-        if (!data.monthlySales || !Array.isArray(data.monthlySales)) {
-          throw new Error("Invalid monthlySales data from API");
-        }
-
         setStats({
           ...data,
           lowStockProducts: data.lowStockProducts || [],
@@ -65,7 +61,6 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
-  // Chart slicing for last months
   const chartData = (() => {
     const sales = stats.monthlySales || [];
     const now = new Date();
@@ -74,7 +69,6 @@ export default function Dashboard() {
     return sales.slice(start, currentMonth + 1);
   })();
 
-  // Total revenue & items sold
   const totalRevenue = (stats.monthlySales || []).reduce((sum, m) => sum + (m.totalRevenue || 0), 0);
   const totalItemsSold = (stats.monthlySales || []).reduce((sum, m) => sum + (m.itemsSold || 0), 0);
 
@@ -103,12 +97,12 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 w-full overflow-x-hidden">
+    <div className="p-4 md:p-6 w-full min-w-0 space-y-6">
       <h1 className="text-3xl md:text-4xl font-bold">Dashboard</h1>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 min-w-0">
+        {[ 
           { icon: FaBoxes, label: "Total Products", value: stats.totalProducts, color: "text-primary" },
           { icon: FaTags, label: "Total Brands", value: stats.totalBrands, color: "text-secondary" },
           { icon: FaLayerGroup, label: "Total Categories", value: stats.totalCategories, color: "text-accent" },
@@ -117,7 +111,7 @@ export default function Dashboard() {
         ].map((card, idx) => (
           <div
             key={idx}
-            className="card bg-base-200 shadow-md p-4 flex flex-col items-center justify-center text-center w-full"
+            className="card bg-base-200 shadow-md p-4 flex flex-col items-center justify-center text-center w-full min-w-0"
           >
             <card.icon className={`text-3xl ${card.color} mb-2`} />
             <div>
@@ -128,7 +122,7 @@ export default function Dashboard() {
         ))}
 
         {/* Low Stock Alerts */}
-        <div className="card bg-base-200 shadow-md p-4 w-full">
+        <div className="card bg-base-200 shadow-md p-4 w-full min-w-0">
           <p className="text-sm md:text-base font-semibold">Low Stock Alerts</p>
           {stats.lowStockProducts?.length === 0 ? (
             <p className="text-green-600 font-bold mt-2">All stocked ✅</p>
@@ -146,7 +140,7 @@ export default function Dashboard() {
       </div>
 
       {/* Monthly Sales Chart */}
-      <div className="p-4 bg-base-200 rounded-lg shadow w-full overflow-x-auto">
+      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
         <h2 className="text-xl md:text-2xl font-semibold mb-4">Monthly Sales</h2>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData || []} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
@@ -162,7 +156,7 @@ export default function Dashboard() {
       </div>
 
       {/* Latest Sales Table */}
-      <div className="p-4 bg-base-200 rounded-lg shadow overflow-x-auto">
+      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
         <h2 className="text-xl md:text-2xl font-semibold mb-4">Latest Sales</h2>
         <table className="table table-zebra table-compact w-full">
           <thead>
@@ -179,16 +173,18 @@ export default function Dashboard() {
                 <tr key={sale._id}>
                   <td>{sale.date ? new Date(sale.date).toLocaleDateString() : "N/A"}</td>
                   <td>{sale.user?.name || "N/A"}</td>
-                  <td>
-                    {sale.items?.map((item) => (
-                      <span
-                        key={item.product?._id}
-                        className="badge badge-sm badge-primary mr-1 mb-1 break-words max-w-[120px]"
-                      >
-                        {item.product?.name || "N/A"} x{item.quantity || 0}
-                      </span>
-                    ))}
-                  </td>
+                  <td className="flex flex-wrap items-start gap-1">
+  {sale.items?.map((item) => (
+    <span
+      key={item.product?._id}
+      className="badge badge-sm badge-primary break-words max-w-[120px] truncate"
+    >
+      {item.product?.name || "N/A"} x{item.quantity || 0}
+    </span>
+  ))}
+</td>
+
+
                   <td className="font-semibold text-success">₱{sale.totalAmount?.toLocaleString() || 0}</td>
                 </tr>
               ))
@@ -202,7 +198,7 @@ export default function Dashboard() {
       </div>
 
       {/* Top Products Table */}
-      <div className="p-4 bg-base-200 rounded-lg shadow overflow-x-auto">
+      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
         <h2 className="text-xl md:text-2xl font-semibold mb-4">Top Selling Products</h2>
         <table className="table table-zebra table-compact w-full">
           <thead>

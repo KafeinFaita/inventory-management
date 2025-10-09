@@ -58,8 +58,8 @@ export default function Sales() {
     );
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-4 md:p-6 space-y-6 w-full">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl md:text-4xl font-bold">Sales Report</h1>
         <Link to="add" className="btn btn-primary">
           + New Sale
@@ -69,9 +69,11 @@ export default function Sales() {
       {sales.length === 0 ? (
         <p className="text-center text-gray-500 mt-8">No sales recorded yet.</p>
       ) : (
-        <SalesTable sales={sales} />
+        // ✅ Make table container scrollable on small screens
+        <div className="overflow-x-auto">
+          <SalesTable sales={sales} />
+        </div>
       )}
     </div>
   );
 }
-
