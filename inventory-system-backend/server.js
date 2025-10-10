@@ -37,6 +37,16 @@ mongoose.connect(process.env.MONGO_URI, {
 }).then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ DB Error:", err));
 
+
+ // update products without hasVariant attribute
+import Product from "./models/Product.js";
+
+Product.updateMany({ hasVariants: { $exists: false } }, { $set: { hasVariants: false } })
+  .then(res => console.log(`✅ Updated ${res.modifiedCount} old products with hasVariants:false`))
+  .catch(err => console.error("❌ Failed to update old products:", err));
+ 
+
+
 // Test route
 app.get("/", (req, res) => {
   res.send("API is running...");
