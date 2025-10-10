@@ -5,7 +5,7 @@ import { protect, adminOnly } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 // Get current settings
-router.get("/", protect, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     let settings = await Setting.findOne({});
     if (!settings) {
