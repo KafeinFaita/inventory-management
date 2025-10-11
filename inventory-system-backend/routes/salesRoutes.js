@@ -29,18 +29,9 @@ router.get("/", protect, allowRoles("admin", "staff"), async (req, res) => {
 ========================================================= */
 router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
   try {
-    // Defensive: remove any incoming createdAt/date fields so mongoose uses timestamps/defaults
+    // Defensive: remove incoming dates so timestamps/defaults apply
     if ("createdAt" in req.body) delete req.body.createdAt;
-    if ("date" in req.body) {
-      const parsed = new Date(req.body.date);
-      if (isNaN(parsed.getTime())) {
-        // invalid, remove it so mongoose provides the default
-        delete req.body.date;
-      } else {
-        // valid date provided — but still remove to let timestamps handle createdAt
-        delete req.body.date;
-      }
-    }
+    if ("date" in req.body) delete req.body.date;
 
     const { items, customerName, paymentMethod } = req.body;
 
@@ -48,8 +39,8 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
       return res.status(400).json({ error: "No sale items provided" });
     }
 
-    // Validate & prepare sale items (also deduct stock)
     const itemsWithPrice = [];
+
     for (const item of items) {
       if (!item.product) {
         return res.status(400).json({ error: "Sale item missing product id" });
@@ -63,38 +54,69 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
         return res.status(404).json({ error: `Product not found: ${item.product}` });
       }
 
-      if (product.stock < item.quantity) {
-        return res.status(400).json({
-          error: `Insufficient stock for ${product.name}. Available: ${product.stock}`,
-        });
-      }
+      // --- Handle variant products ---
+      if (product.hasVariants) {
+        if (!item.variants || item.variants.length === 0) {
+          return res.status(400).json({ error: `Product ${product.name} requires variant selection.` });
+        }
 
-      // Deduct stock immediately (persist)
-      product.stock -= item.quantity;
-      await product.save();
+        // Validate submitted variants exist in product
+        for (const v of item.variants) {
+          const category = product.variants.find(cat => cat.category === v.category);
+          if (!category) {
+            return res.status(400).json({ error: `Invalid variant category: ${v.category}` });
+          }
+          if (!category.options.includes(v.option)) {
+            return res.status(400).json({ error: `Invalid variant option for ${v.category}: ${v.option}` });
+          }
+        }
+
+        // Deduct stock at variant level
+        for (const v of item.variants) {
+          const category = product.variants.find(cat => cat.category === v.category);
+          const optionIndex = category.options.findIndex(opt => opt === v.option);
+          if (!category.stock) category.stock = Array(category.options.length).fill(product.stock || 0);
+          if (category.stock[optionIndex] < item.quantity) {
+            return res.status(400).json({
+              error: `Insufficient stock for ${product.name} (${v.category}: ${v.option}). Available: ${category.stock[optionIndex]}`
+            });
+          }
+          category.stock[optionIndex] -= item.quantity;
+        }
+
+        await product.save();
+      } else {
+        // --- Non-variant products ---
+        if (product.stock < item.quantity) {
+          return res.status(400).json({
+            error: `Insufficient stock for ${product.name}. Available: ${product.stock}`,
+          });
+        }
+        product.stock -= item.quantity;
+        await product.save();
+      }
 
       itemsWithPrice.push({
         product: product._id,
         quantity: item.quantity,
         priceAtSale: product.price,
+        variants: item.variants || [],
       });
     }
 
-    // --- Generate invoiceNumber safely using start/end of current day ---
+    // --- Generate invoiceNumber ---
     const now = new Date();
     const startOfDay = new Date(now);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
-
     const saleCountToday = await Sale.countDocuments({
       createdAt: { $gte: startOfDay, $lte: endOfDay },
     });
-
     const datePart = now.toISOString().split("T")[0].replace(/-/g, "");
     const invoiceNumber = `INV-${datePart}-${(saleCountToday + 1).toString().padStart(3, "0")}`;
 
-    // Create sale document
+    // --- Create sale document ---
     const sale = new Sale({
       user: req.user._id,
       items: itemsWithPrice,
@@ -105,16 +127,15 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
 
     await sale.save();
 
-    // Populate returned sale consistently with previous behavior
+    // Populate for frontend
     const savedSale = await Sale.findById(sale._id)
       .populate("user", "name email role")
-      .populate("items.product", "name price");
+      .populate("items.product", "name price brand");
 
     res.status(201).json(savedSale);
   } catch (err) {
     console.error("Error creating sale:", err);
 
-    // If it's a thrown Error with message from our code (like insufficient stock), prefer 400
     if (err.message && /Insufficient stock|not found|Invalid/i.test(err.message)) {
       return res.status(400).json({ error: err.message });
     }

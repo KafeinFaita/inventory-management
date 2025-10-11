@@ -19,9 +19,11 @@ export default function Inventory() {
   const [category, setCategory] = useState("");
   const [hasVariants, setHasVariants] = useState(false);
   const [variantCategories, setVariantCategories] = useState([]);
-  // variantCategories = [{ category: "Color", options: ["Blue","Red"] }, { category: "Storage", options: ["128GB","256GB"] }]
   const [variantCombinations, setVariantCombinations] = useState([]);
-  // variantCombinations = [{ attributes: {Color:"Blue", Storage:"256GB"}, stock: 0, price: 0 }]
+
+  // For non-variant products
+  const [nonVariantStock, setNonVariantStock] = useState(0);
+  const [nonVariantPrice, setNonVariantPrice] = useState(0);
 
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -81,8 +83,8 @@ export default function Inventory() {
   };
 
   // ---------- Variant Handlers ----------
-
-  const addVariantCategory = () => setVariantCategories([...variantCategories, { category: "", options: [""] }]);
+  const addVariantCategory = () =>
+    setVariantCategories([...variantCategories, { category: "", options: [""] }]);
   const removeVariantCategory = (index) => {
     const newCategories = [...variantCategories];
     newCategories.splice(index, 1);
@@ -116,22 +118,28 @@ export default function Inventory() {
 
   // ---------- Generate all combinations ----------
   const generateCombinations = (categoriesArray) => {
-    if (!categoriesArray.length || categoriesArray.some(c => !c.category || c.options.length === 0)) {
+    if (!categoriesArray.length || categoriesArray.some((c) => !c.category || c.options.length === 0)) {
       setVariantCombinations([]);
       return;
     }
 
-    const combos = cartesianProduct(categoriesArray.map(c => c.options.map(opt => ({ [c.category]: opt }))));
-    const formatted = combos.map(c => {
+    const combos = cartesianProduct(
+      categoriesArray.map((c) => c.options.map((opt) => ({ [c.category]: opt })))
+    );
+
+    const formatted = combos.map((c) => {
       const attributes = Object.assign({}, ...c);
-      const existing = variantCombinations.find(v => JSON.stringify(v.attributes) === JSON.stringify(attributes));
+      const existing = variantCombinations.find(
+        (v) => JSON.stringify(v.attributes) === JSON.stringify(attributes)
+      );
       return { attributes, stock: existing?.stock || 0, price: existing?.price || 0 };
     });
+
     setVariantCombinations(formatted);
   };
 
   const cartesianProduct = (arrays) => {
-    return arrays.reduce((a, b) => a.flatMap(d => b.map(e => [...d, e])), [[]]);
+    return arrays.reduce((a, b) => a.flatMap((d) => b.map((e) => [...d, e])), [[]]);
   };
 
   const updateCombinationField = (index, field, value) => {
@@ -159,8 +167,8 @@ export default function Inventory() {
       category,
       hasVariants,
       variants: hasVariants ? variantCombinations : [],
-      stock: hasVariants ? 0 : variantCombinations.length === 0 ? 0 : variantCombinations[0].stock,
-      price: hasVariants ? 0 : variantCombinations.length === 0 ? 0 : variantCombinations[0].price,
+      stock: hasVariants ? 0 : nonVariantStock,
+      price: hasVariants ? 0 : nonVariantPrice,
     };
 
     try {
@@ -173,9 +181,16 @@ export default function Inventory() {
         showSuccess("Product added successfully!");
       }
 
-      // Reset
-      setName(""); setBrand(""); setCategory("");
-      setHasVariants(false); setVariantCategories([]); setVariantCombinations([]);
+      // Reset form
+      setName("");
+      setBrand("");
+      setCategory("");
+      setHasVariants(false);
+      setVariantCategories([]);
+      setVariantCombinations([]);
+      setNonVariantStock(0);
+      setNonVariantPrice(0);
+
       fetchProducts();
     } catch (err) {
       console.error(err);
@@ -187,12 +202,14 @@ export default function Inventory() {
   };
 
   const handleEdit = (product) => {
-    setName(product.name); setBrand(product.brand); setCategory(product.category);
+    setName(product.name);
+    setBrand(product.brand);
+    setCategory(product.category);
     setHasVariants(product.hasVariants);
 
     if (product.hasVariants && product.variants?.length) {
       const cats = {};
-      product.variants.forEach(v => {
+      product.variants.forEach((v) => {
         Object.entries(v.attributes).forEach(([cat, val]) => {
           if (!cats[cat]) cats[cat] = new Set();
           cats[cat].add(val);
@@ -201,11 +218,13 @@ export default function Inventory() {
       const catArray = Object.entries(cats).map(([cat, setVals]) => ({ category: cat, options: Array.from(setVals) }));
       setVariantCategories(catArray);
 
-      const combos = product.variants.map(v => ({ attributes: v.attributes, stock: v.stock, price: v.price }));
+      const combos = product.variants.map((v) => ({ attributes: v.attributes, stock: v.stock, price: v.price }));
       setVariantCombinations(combos);
     } else {
       setVariantCategories([]);
       setVariantCombinations([]);
+      setNonVariantStock(product.stock || 0);
+      setNonVariantPrice(product.price || 0);
     }
 
     setEditingId(product._id);
@@ -229,8 +248,15 @@ export default function Inventory() {
   };
 
   const handleCancel = () => {
-    setEditingId(null); setName(""); setBrand(""); setCategory("");
-    setHasVariants(false); setVariantCategories([]); setVariantCombinations([]);
+    setEditingId(null);
+    setName("");
+    setBrand("");
+    setCategory("");
+    setHasVariants(false);
+    setVariantCategories([]);
+    setVariantCombinations([]);
+    setNonVariantStock(0);
+    setNonVariantPrice(0);
   };
 
   // ---------- Render ----------
@@ -275,6 +301,22 @@ export default function Inventory() {
             {categories.map(c => (<option key={c._id} value={c.name}>{c.name}</option>))}
           </select>
         </div>
+
+        {/* Non-Variant Inputs */}
+        {!hasVariants && (
+          <div className="flex space-x-4">
+            <div className="flex-1">
+              <label className="block font-semibold mb-1">Stock</label>
+              <input type="number" min="0" value={nonVariantStock} onChange={e => setNonVariantStock(Number(e.target.value))}
+                     className="input input-bordered w-full" disabled={submitting} />
+            </div>
+            <div className="flex-1">
+              <label className="block font-semibold mb-1">Price</label>
+              <input type="number" min="0" step="0.01" value={nonVariantPrice} onChange={e => setNonVariantPrice(Number(e.target.value))}
+                     className="input input-bordered w-full" disabled={submitting} />
+            </div>
+          </div>
+        )}
 
         {/* Variant Toggle */}
         <div className="flex items-center space-x-2">
@@ -345,48 +387,56 @@ export default function Inventory() {
       </form>
 
       {/* Products Table */}
-      <div className="overflow-x-auto bg-base-200 p-6 rounded-lg shadow mt-6">
-        <table className="table w-full">
-          <thead>
-            <tr>
-              <th>Name</th><th>Brand</th><th>Category</th><th>Has Variants</th><th>Stock / Price</th><th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map(p => (
-              <tr key={p._id} className={(!p.hasVariants && p.stock <= 5) ? "bg-red-100" : ""}>
-                <td>{p.name}</td>
-                <td>{p.brand}</td>
-                <td>{p.category}</td>
-                <td>{p.hasVariants ? "Yes" : "No"}</td>
-                <td>
-                  {p.hasVariants ? (
-                    <table className="table-auto w-full border">
-                      <thead>
-                        <tr>{p.variants?.length > 0 && Object.keys(p.variants[0].attributes).map((cat,i) => <th key={i}>{cat}</th>)}<th>Stock</th><th>Price</th></tr>
-                      </thead>
-                      <tbody>
-                        {p.variants?.map((v,i) => (
-                          <tr key={i}>
-                            {Object.values(v.attributes).map((val,j) => <td key={j}>{val}</td>)}
-                            <td>{v.stock}</td>
-                            <td>{v.price}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : `${p.stock} / ${p.price}`}
-                </td>
-                <td className="space-x-2">
-                  <button className="btn btn-sm btn-info" onClick={() => handleEdit(p)}>Edit</button>
-                  <button className="btn btn-sm btn-error" onClick={() => handleDelete(p._id)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-            {products.length === 0 && <tr><td colSpan="6" className="text-center py-4">No products found.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      {/* Products Table */}
+<div className="overflow-x-auto bg-base-200 p-6 rounded-lg shadow mt-6">
+  {loading ? (
+    <div className="flex justify-center items-center h-64">
+      <span className="loading loading-spinner text-primary loading-lg"></span>
+    </div>
+  ) : (
+    <table className="table w-full">
+      <thead>
+        <tr>
+          <th>Name</th><th>Brand</th><th>Category</th><th>Has Variants</th><th>Stock / Price</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {products.map(p => (
+          <tr key={p._id} className={(!p.hasVariants && p.stock <= 5) ? "bg-red-100" : ""}>
+            <td>{p.name}</td>
+            <td>{p.brand}</td>
+            <td>{p.category}</td>
+            <td>{p.hasVariants ? "Yes" : "No"}</td>
+            <td>
+              {p.hasVariants ? (
+                <table className="table-auto w-full border">
+                  <thead>
+                    <tr>{p.variants?.length > 0 && Object.keys(p.variants[0].attributes).map((cat,i) => <th key={i}>{cat}</th>)}<th>Stock</th><th>Price</th></tr>
+                  </thead>
+                  <tbody>
+                    {p.variants?.map((v,i) => (
+                      <tr key={i}>
+                        {Object.values(v.attributes).map((val,j) => <td key={j}>{val}</td>)}
+                        <td>{v.stock}</td>
+                        <td>{v.price}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : `${p.stock} / ${p.price}` }
+            </td>
+            <td className="space-x-2">
+              <button className="btn btn-sm btn-info" onClick={() => handleEdit(p)}>Edit</button>
+              <button className="btn btn-sm btn-error" onClick={() => handleDelete(p._id)}>Delete</button>
+            </td>
+          </tr>
+        ))}
+        {products.length === 0 && <tr><td colSpan="6" className="text-center py-4">No products found.</td></tr>}
+      </tbody>
+    </table>
+  )}
+</div>
+
     </div>
   );
 }

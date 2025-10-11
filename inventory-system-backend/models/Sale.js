@@ -13,8 +13,14 @@ const saleItemSchema = new mongoose.Schema({
   },
   priceAtSale: {
     type: Number,
-    required: true, // store product price at time of sale
+    required: true,
   },
+  variants: [
+    {
+      category: { type: String, required: true }, // e.g., "Color"
+      option: { type: String, required: true },   // e.g., "Red"
+    },
+  ],
 });
 
 const saleSchema = new mongoose.Schema(
