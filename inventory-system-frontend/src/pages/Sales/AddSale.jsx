@@ -58,17 +58,17 @@ export default function AddSale() {
   const handleChange = (index, field, value) => {
     const updated = [...items];
     updated[index][field] = value;
+    // When product changes, reset selected variant
+    if (field === "product") {
+      updated[index].variants = [];
+    }
     setItems(updated);
   };
 
-  // Update variant selection
-  const handleVariantChange = (itemIndex, variantCategory, option) => {
+  // Variant selection: store a single entry with full variant name
+  const handleVariantSelect = (itemIndex, selectedName) => {
     const updated = [...items];
-    const item = updated[itemIndex];
-    item.variants = item.variants || [];
-    const existing = item.variants.find((v) => v.category === variantCategory);
-    if (existing) existing.option = option;
-    else item.variants.push({ category: variantCategory, option });
+    updated[itemIndex].variants = [{ category: "Variant", option: selectedName }];
     setItems(updated);
   };
 
@@ -76,12 +76,13 @@ export default function AddSale() {
     return items.reduce((sum, item) => {
       const prod = products.find((p) => p._id === item.product);
       if (!prod) return sum;
+
       if (prod.hasVariants && item.variants?.length > 0) {
-        // get matching variant price
-        const variantName = item.variants.map((v) => v.option).join(" - ");
-        const variant = prod.variants.find((v) => v.name === variantName);
-        return sum + (variant?.price || prod.price) * item.quantity;
+        const selectedName = item.variants[0]?.option;
+        const variant = prod.variants.find((v) => v.name === selectedName);
+        return sum + (variant?.price || 0) * item.quantity;
       }
+
       return sum + prod.price * item.quantity;
     }, 0);
   };
@@ -93,8 +94,8 @@ export default function AddSale() {
       if (!product) continue;
 
       if (product.hasVariants && item.variants?.length > 0) {
-        const variantName = item.variants.map((v) => v.option).join(" - ");
-        const variant = product.variants.find((v) => v.name === variantName);
+        const selectedName = item.variants[0]?.option;
+        const variant = product.variants.find((v) => v.name === selectedName);
         if (!variant) throw new Error(`Variant not found for ${product.name}`);
         if (item.quantity > variant.stock)
           throw new Error(
@@ -186,6 +187,14 @@ export default function AddSale() {
           );
           const selectedProduct = products.find((p) => p._id === item.product);
 
+          // compute quantity max respecting variant stock if selected
+          const quantityMax =
+            selectedProduct
+              ? selectedProduct.hasVariants && item.variants?.[0]?.option
+                ? (selectedProduct.variants.find((v) => v.name === item.variants[0].option)?.stock || undefined)
+                : selectedProduct.stock
+              : undefined;
+
           return (
             <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div>
@@ -206,35 +215,49 @@ export default function AddSale() {
                   <option value="">Select Product</option>
                   {filteredProducts.map((p) => (
                     <option key={p._id} value={p._id}>
-                      {p.name} — ₱{p.price} ({p.stock} in stock)
+                      {p.name}
+                      {p.hasVariants ? "" : ` — ₱${p.price} (${p.stock} in stock)`}
                     </option>
                   ))}
                 </select>
 
                 {selectedProduct?.hasVariants && selectedProduct.variants.length > 0 && (
                   <div className="mt-2">
-                    {selectedProduct.variants.map((v) => (
-                      <div key={v.name} className="mb-1">
-                        <label className="text-sm font-semibold">{v.name}</label>
-                        <select
-  value={item.variants?.find((x) => x.category === v.name)?.option || ""}
-  onChange={(e) => handleVariantChange(index, v.name, e.target.value)}
-  required
-  className="select select-bordered w-full"
->
-  <option value="">Select option</option>
-  <option value={v.name}>{v.name} — Stock: {v.stock}</option>
-</select>
-
-                      </div>
-                    ))}
+                    <label className="text-sm font-semibold">Variant</label>
+                    <select
+                      value={item.variants?.[0]?.option || ""}
+                      onChange={(e) => {
+                        const selectedName = e.target.value;
+                        handleVariantSelect(index, selectedName);
+                      }}
+                      required
+                      className="select select-bordered w-full"
+                    >
+                      <option value="">Select variant</option>
+                      {selectedProduct.variants.map((v) => (
+                        <option key={v.name} value={v.name} disabled={v.stock === 0}>
+                          {v.name} — ₱{v.price} (Stock: {v.stock})
+                          {v.stock === 0 ? " — Out of stock" : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
                 {selectedProduct && (
                   <div className="mt-1 text-sm text-gray-600">
-                    Price: ₱{selectedProduct.price}, Stock: {selectedProduct.stock},{" "}
-                    Brand: {selectedProduct.brand || "N/A"}
+                    {selectedProduct.hasVariants
+                      ? (() => {
+                          const selectedName = item.variants?.[0]?.option;
+                          const v = selectedName
+                            ? selectedProduct.variants.find((vv) => vv.name === selectedName)
+                            : null;
+                          const priceText = v
+                            ? `Price: ₱${v.price}, Stock: ${v.stock}`
+                            : "Variant-based product. Select a variant to view price and stock";
+                          return `${priceText}, Brand: ${selectedProduct.brand || "N/A"}`;
+                        })()
+                      : `Price: ₱${selectedProduct.price}, Stock: ${selectedProduct.stock}, Brand: ${selectedProduct.brand || "N/A"}`}
                   </div>
                 )}
               </div>
@@ -244,7 +267,7 @@ export default function AddSale() {
                 <input
                   type="number"
                   min="1"
-                  max={selectedProduct ? selectedProduct.stock : undefined}
+                  max={quantityMax}
                   value={item.quantity}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 1;

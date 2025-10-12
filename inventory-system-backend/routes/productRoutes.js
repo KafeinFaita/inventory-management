@@ -4,6 +4,15 @@ import { protect, adminOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+// Utility: build a variant name string from attributes
+const buildVariantName = (variant) => {
+  if (variant.name && variant.name.trim() !== "") return variant.name;
+  if (variant.attributes && Object.keys(variant.attributes).length > 0) {
+    return Object.values(variant.attributes).join(" - ");
+  }
+  return "Variant";
+};
+
 // Get all products (admin + staff can view)
 router.get("/", protect, async (req, res) => {
   try {
@@ -34,6 +43,14 @@ router.post("/", protect, adminOnly, async (req, res) => {
         .json({ error: "Variants must be provided when hasVariants is true." });
     }
 
+    // Ensure each variant has a name
+    const normalizedVariants = hasVariants
+      ? variants.map((v) => ({
+          ...v,
+          name: buildVariantName(v),
+        }))
+      : [];
+
     const product = new Product({
       name,
       brand,
@@ -41,7 +58,7 @@ router.post("/", protect, adminOnly, async (req, res) => {
       stock: hasVariants ? 0 : stock, // stock handled by variants if enabled
       price: hasVariants ? 0 : price, // price handled by variants if enabled
       hasVariants,
-      variants,
+      variants: normalizedVariants,
     });
 
     await product.save();
@@ -71,6 +88,14 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
         .json({ error: "Variants must be provided when hasVariants is true." });
     }
 
+    // Ensure each variant has a name
+    const normalizedVariants = hasVariants
+      ? variants.map((v) => ({
+          ...v,
+          name: buildVariantName(v),
+        }))
+      : [];
+
     const updatedData = {
       name,
       brand,
@@ -78,7 +103,7 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
       stock: hasVariants ? 0 : stock,
       price: hasVariants ? 0 : price,
       hasVariants,
-      variants,
+      variants: normalizedVariants,
     };
 
     const product = await Product.findByIdAndUpdate(req.params.id, updatedData, { new: true });

@@ -23,18 +23,16 @@ router.get("/", protect, allowRoles("admin", "staff"), async (req, res) => {
 
 /* =========================================================
    CREATE SALE (admin + staff)
-   - sanitizes incoming data to avoid invalid createdAt/date
+   - sanitizes incoming data
    - checks stock, deducts stock, snapshots priceAtSale
-   - generates invoiceNumber safely using start/end-of-day counting
+   - generates invoiceNumber
 ========================================================= */
 router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
   try {
-    // Defensive: remove incoming dates so timestamps/defaults apply
     if ("createdAt" in req.body) delete req.body.createdAt;
     if ("date" in req.body) delete req.body.date;
 
     const { items, customerName, paymentMethod } = req.body;
-
     if (!items || items.length === 0) {
       return res.status(400).json({ error: "No sale items provided" });
     }
@@ -60,31 +58,30 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
           return res.status(400).json({ error: `Product ${product.name} requires variant selection.` });
         }
 
-        // Validate submitted variants exist in product
-        for (const v of item.variants) {
-          const category = product.variants.find(cat => cat.category === v.category);
-          if (!category) {
-            return res.status(400).json({ error: `Invalid variant category: ${v.category}` });
-          }
-          if (!category.options.includes(v.option)) {
-            return res.status(400).json({ error: `Invalid variant option for ${v.category}: ${v.option}` });
-          }
+        // Expect a single variant selection: { category: "Variant", option: "<variant name>" }
+        const selectedName = item.variants[0]?.option;
+        const variant = product.variants.find((v) => v.name === selectedName);
+
+        if (!variant) {
+          return res.status(400).json({ error: `Invalid variant selection for ${product.name}: ${selectedName}` });
+        }
+
+        if (variant.stock < item.quantity) {
+          return res.status(400).json({
+            error: `Insufficient stock for ${product.name} (${variant.name}). Available: ${variant.stock}`,
+          });
         }
 
         // Deduct stock at variant level
-        for (const v of item.variants) {
-          const category = product.variants.find(cat => cat.category === v.category);
-          const optionIndex = category.options.findIndex(opt => opt === v.option);
-          if (!category.stock) category.stock = Array(category.options.length).fill(product.stock || 0);
-          if (category.stock[optionIndex] < item.quantity) {
-            return res.status(400).json({
-              error: `Insufficient stock for ${product.name} (${v.category}: ${v.option}). Available: ${category.stock[optionIndex]}`
-            });
-          }
-          category.stock[optionIndex] -= item.quantity;
-        }
-
+        variant.stock -= item.quantity;
         await product.save();
+
+        itemsWithPrice.push({
+          product: product._id,
+          quantity: item.quantity,
+          priceAtSale: variant.price, // snapshot variant price
+          variants: item.variants || [],
+        });
       } else {
         // --- Non-variant products ---
         if (product.stock < item.quantity) {
@@ -94,14 +91,14 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
         }
         product.stock -= item.quantity;
         await product.save();
-      }
 
-      itemsWithPrice.push({
-        product: product._id,
-        quantity: item.quantity,
-        priceAtSale: product.price,
-        variants: item.variants || [],
-      });
+        itemsWithPrice.push({
+          product: product._id,
+          quantity: item.quantity,
+          priceAtSale: product.price, // snapshot base price
+          variants: [],
+        });
+      }
     }
 
     // --- Generate invoiceNumber ---
@@ -146,7 +143,7 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
 
 /* =========================================================
    GET SINGLE SALE INVOICE DATA
-   (admin + staff allowed; both can generate)
+   (PDF-related logic untouched for now)
 ========================================================= */
 router.get("/:id/invoice", protect, allowRoles("admin", "staff"), async (req, res) => {
   try {
@@ -163,7 +160,7 @@ router.get("/:id/invoice", protect, allowRoles("admin", "staff"), async (req, re
       paymentMethod: sale.paymentMethod,
       user: sale.user,
       items: sale.items.map((i) => ({
-        name: i.product?.name || i.product, // fallback if not populated
+        name: i.product?.name || i.product,
         brand: i.product?.brand || undefined,
         quantity: i.quantity,
         priceAtSale: i.priceAtSale,
