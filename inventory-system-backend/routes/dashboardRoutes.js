@@ -15,8 +15,32 @@ router.get("/", protect, async (req, res) => {
     const totalBrands = await Brand.countDocuments();
     const totalCategories = await Category.countDocuments();
 
-    // 2️⃣ Low-stock products
-    const lowStockProducts = await Product.find({ stock: { $lte: 5 } }).select("name stock");
+    // 2️⃣ Low-stock products (variant-aware)
+    const products = await Product.find().select("name hasVariants stock variants");
+    const lowStockProducts = [];
+
+    for (const p of products) {
+      if (p.hasVariants) {
+        p.variants.forEach((v) => {
+          if (v.stock <= 5) {
+            lowStockProducts.push({
+              _id: p._id,
+              name: p.name,
+              variant: v.name,   // e.g. "Red - M"
+              stock: v.stock,
+            });
+          }
+        });
+      } else {
+        if (p.stock <= 5) {
+          lowStockProducts.push({
+            _id: p._id,
+            name: p.name,
+            stock: p.stock,
+          });
+        }
+      }
+    }
 
     // 3️⃣ Monthly sales (zero-filled)
     const monthNames = [
@@ -97,4 +121,3 @@ router.get("/", protect, async (req, res) => {
 });
 
 export default router;
-
