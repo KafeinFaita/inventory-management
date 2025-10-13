@@ -11,6 +11,7 @@ import Login from "./pages/auth/Login";
 import Users from "./pages/users/Users";
 import AddUser from "./pages/users/AddUser";
 import EditUser from "./pages/users/EditUser";
+import AccountSettings from "./pages/AccountSettings";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const router = createBrowserRouter([
@@ -32,7 +33,8 @@ const router = createBrowserRouter([
               { path: "add", element: <AddSale /> },
             ],
           },
-          { path: "profile", element: <Dashboard /> }, // or a profile page component
+          { path: "account", element: <AccountSettings /> }
+
         ],
       },
     ],

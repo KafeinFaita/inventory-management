@@ -6,54 +6,72 @@ import { API_URL } from "../config";
 
 /**
  * Generate invoice PDF and open in a new tab.
- * Includes business name and address from Settings.
- * Opens a small HTML wrapper so tab title and downloadable filename are readable.
+ * Respects PDF settings (page size, orientation, footer) and renders business details.
+ * Logo is optional: if missing or cannot be loaded, it is simply skipped.
  */
 export const generatePDF = async (sale) => {
   try {
     if (!sale) throw new Error("No sale data provided.");
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-
-    // Fetch settings (no logo for now)
+    // Fetch settings (business + pdfSettings)
     let settings = {};
     try {
       const token = localStorage.getItem("token");
       const { data } = await axios.get(`${API_URL}/api/settings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      settings = data;
+      settings = data || {};
     } catch (err) {
-      console.warn("Failed to fetch settings:", err.message);
+      console.warn("Failed to fetch settings:", err?.message || err);
+      settings = {};
     }
+
+    // Create doc with settings
+    const doc = new jsPDF({
+      orientation: settings?.pdfSettings?.orientation || "portrait",
+      unit: "mm",
+      format: (settings?.pdfSettings?.pageSize || "A4").toLowerCase(),
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
 
     // Prepare invoice metadata
     const invoiceId =
       sale.invoiceNumber ||
       sale._id ||
       `TEMP-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
-
     const saleDate = new Date(sale.date || sale.createdAt || Date.now()).toLocaleString();
     const itemsArr = Array.isArray(sale.items) ? sale.items : [];
 
     // ===== HEADER =====
+    // Try to render logo if available; skip silently if not present or cannot be loaded
+    if (settings?.businessLogoUrl) {
+      try {
+        const logoImg = await loadImage(settings.businessLogoUrl);
+        // Draw logo on the left; adjust header Y positions accordingly
+        doc.addImage(logoImg, "PNG", 14, 10, 30, 30); // x, y, width, height
+      } catch (err) {
+        console.warn("Logo not found or failed to load. Skipping logo.");
+      }
+    }
+
+    // Business name (centered)
     doc.setFontSize(18);
     doc.text(settings?.businessName || "My Business", pageWidth / 2, 20, { align: "center" });
 
+    // Business address (centered, optional)
     if (settings?.businessAddress) {
       doc.setFontSize(11);
       doc.text(settings.businessAddress, pageWidth / 2, 28, { align: "center" });
     }
 
-    // Sub-header
+    // Sub-header: Invoice label and metadata
     doc.setFontSize(16);
     doc.text("INVOICE", pageWidth / 2, 45, { align: "center" });
 
     doc.setFontSize(12);
     doc.text(`Invoice: ${invoiceId}`, 14, 55);
     doc.text(`Date: ${saleDate}`, 14, 62);
-
     if (sale.user?.name) {
       doc.text(`Sold by: ${sale.user.name}`, pageWidth - 14, 55, { align: "right" });
     }
@@ -75,7 +93,7 @@ export const generatePDF = async (sale) => {
       }
     }
 
-   // ===== TABLE =====
+    // ===== TABLE =====
     const tableBody = itemsArr.map((item) => {
       const baseName = item.product?.name || "Unknown Product";
       const variantLabel =
@@ -86,9 +104,7 @@ export const generatePDF = async (sale) => {
 
       const qty = item.quantity ?? 0;
       const unit =
-        typeof item.priceAtSale === "number"
-          ? item.priceAtSale
-          : item.product?.price ?? 0;
+        typeof item.priceAtSale === "number" ? item.priceAtSale : item.product?.price ?? 0;
       const subtotal = unit * qty;
 
       return [
@@ -98,6 +114,7 @@ export const generatePDF = async (sale) => {
         `P${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       ];
     });
+
     autoTable(doc, {
       head: [["Product", "Qty", "Unit Price", "Total"]],
       body: tableBody,
@@ -111,8 +128,7 @@ export const generatePDF = async (sale) => {
       typeof sale.totalAmount === "number"
         ? sale.totalAmount
         : itemsArr.reduce(
-            (sum, i) =>
-              sum + (i.priceAtSale ?? i.product?.price ?? 0) * (i.quantity ?? 0),
+            (sum, i) => sum + (i.priceAtSale ?? i.product?.price ?? 0) * (i.quantity ?? 0),
             0
           );
 
@@ -127,7 +143,8 @@ export const generatePDF = async (sale) => {
 
     // ===== FOOTER =====
     doc.setFontSize(10);
-    doc.text("Thank you for your purchase!", pageWidth / 2, finalY + 18, { align: "center" });
+    const footerText = settings?.pdfSettings?.footerText || "Thank you for your purchase!";
+    doc.text(footerText, pageWidth / 2, finalY + 18, { align: "center" });
 
     // ===== OUTPUT =====
     const invoiceDateForName = new Date(sale.date || sale.createdAt || Date.now())
@@ -135,11 +152,10 @@ export const generatePDF = async (sale) => {
       .slice(0, 10);
     const fileName = `Invoice_${invoiceId}_${invoiceDateForName}.pdf`;
 
-    // create PDF blob + object URL
     const pdfBlob = doc.output("blob");
     const pdfUrl = URL.createObjectURL(pdfBlob);
 
-    // Build a small HTML viewer page (so tab has a title and a proper download link)
+    // Simple viewer page so tab title and download name are nice
     const escapeHtml = (str = "") =>
       String(str)
         .replace(/&/g, "&amp;")
@@ -149,7 +165,6 @@ export const generatePDF = async (sale) => {
         .replace(/'/g, "&#039;");
 
     const safeFileName = escapeHtml(fileName);
-    const safePdfUrl = pdfUrl; // pdfUrl is an object URL; safe to embed directly
 
     const viewerHtml = `<!doctype html>
 <html>
@@ -165,19 +180,17 @@ export const generatePDF = async (sale) => {
 </head>
 <body>
   <div class="toolbar">
-    <a id="download" href="${safePdfUrl}" download="${safeFileName}">Download</a>
+    <a id="download" href="${pdfUrl}" download="${safeFileName}">Download</a>
   </div>
-  <iframe src="${safePdfUrl}"></iframe>
+  <iframe src="${pdfUrl}"></iframe>
 </body>
 </html>`;
 
     const viewerBlob = new Blob([viewerHtml], { type: "text/html" });
     const viewerUrl = URL.createObjectURL(viewerBlob);
+    window.open(viewerUrl, "_blank");
 
-    // open the HTML viewer in a new tab (title will be the filename)
-    const newTab = window.open(viewerUrl, "_blank");
-
-    // cleanup object URLs after a short delay
+    // Cleanup object URLs later
     setTimeout(() => {
       try {
         URL.revokeObjectURL(pdfUrl);
@@ -189,3 +202,15 @@ export const generatePDF = async (sale) => {
     alert("Failed to generate invoice PDF. Check console for details.");
   }
 };
+
+// Helper: fetch image as data URL, throw if not found
+async function loadImage(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Image not found at ${url}`);
+  const blob = await res.blob();
+  return await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}

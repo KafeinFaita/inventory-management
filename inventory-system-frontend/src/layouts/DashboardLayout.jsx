@@ -232,11 +232,11 @@ export default function DashboardLayout() {
           {/* Profile & Logout */}
           <li className="mt-6 pt-4 border-t border-base-content/20">
             <Link
-              to="/profile"
+              to="/account"
               className="flex items-center space-x-3 p-2 rounded-lg hover:bg-primary hover:text-primary-content transition-colors duration-200"
               onClick={() => setSidebarOpen(false)}
             >
-              <FaUser /> <span>Profile</span>
+              <FaUser /> <span>Account Settings</span>
             </Link>
           </li>
           <li>

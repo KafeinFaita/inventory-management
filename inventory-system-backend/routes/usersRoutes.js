@@ -5,6 +5,34 @@ import { protect, adminOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+
+// ✅ Change password for the logged-in user
+router.put("/change-password", protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Both current and new password are required." });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Current password is incorrect." });
+    }
+
+    user.password = newPassword; // will be hashed by the pre-save hook
+    await user.save();
+
+    res.json({ message: "Password updated successfully." });
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(500).json({ error: "Server error. Please try again later." });
+  }
+});
+
 // GET all users
 router.get("/", protect, adminOnly, async (req, res) => {
   try {
@@ -90,5 +118,7 @@ router.delete("/:id", protect, adminOnly, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 export default router;
