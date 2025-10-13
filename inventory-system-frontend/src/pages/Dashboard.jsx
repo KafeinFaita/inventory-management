@@ -9,8 +9,15 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { FaBoxes, FaTags, FaLayerGroup, FaDollarSign, FaShoppingCart } from "react-icons/fa";
+import {
+  FaBoxes,
+  FaTags,
+  FaLayerGroup,
+  FaDollarSign,
+  FaShoppingCart,
+} from "react-icons/fa";
 import { API_URL } from "../config";
+import { generatePDF } from "../utils/generatePDF";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -24,6 +31,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [monthsToShow, setMonthsToShow] = useState(3);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -63,14 +71,17 @@ export default function Dashboard() {
 
   const chartData = (() => {
     const sales = stats.monthlySales || [];
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const start = window.innerWidth < 768 ? Math.max(0, currentMonth - 2) : Math.max(0, currentMonth - 3);
-    return sales.slice(start, currentMonth + 1);
+    return sales.slice(-monthsToShow);
   })();
 
-  const totalRevenue = (stats.monthlySales || []).reduce((sum, m) => sum + (m.totalRevenue || 0), 0);
-  const totalItemsSold = (stats.monthlySales || []).reduce((sum, m) => sum + (m.itemsSold || 0), 0);
+  const totalRevenue = (stats.monthlySales || []).reduce(
+    (sum, m) => sum + (m.totalRevenue || 0),
+    0
+  );
+  const totalItemsSold = (stats.monthlySales || []).reduce(
+    (sum, m) => sum + (m.itemsSold || 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -102,12 +113,37 @@ export default function Dashboard() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 min-w-0">
-        {[ 
-          { icon: FaBoxes, label: "Total Products", value: stats.totalProducts, color: "text-primary" },
-          { icon: FaTags, label: "Total Brands", value: stats.totalBrands, color: "text-secondary" },
-          { icon: FaLayerGroup, label: "Total Categories", value: stats.totalCategories, color: "text-accent" },
-          { icon: FaShoppingCart, label: "Total Items Sold", value: totalItemsSold, color: "text-yellow-500" },
-          { icon: FaDollarSign, label: "Total Revenue", value: `₱${totalRevenue.toLocaleString()}`, color: "text-green-600" },
+        {[
+          {
+            icon: FaBoxes,
+            label: "Total Products",
+            value: stats.totalProducts,
+            color: "text-primary",
+          },
+          {
+            icon: FaTags,
+            label: "Total Brands",
+            value: stats.totalBrands,
+            color: "text-secondary",
+          },
+          {
+            icon: FaLayerGroup,
+            label: "Total Categories",
+            value: stats.totalCategories,
+            color: "text-accent",
+          },
+          {
+            icon: FaShoppingCart,
+            label: "Total Items Sold",
+            value: totalItemsSold,
+            color: "text-yellow-500",
+          },
+          {
+            icon: FaDollarSign,
+            label: "Total Revenue",
+            value: `₱${totalRevenue.toLocaleString()}`,
+            color: "text-green-600",
+          },
         ].map((card, idx) => (
           <div
             key={idx}
@@ -130,7 +166,10 @@ export default function Dashboard() {
             <ul className="mt-2 space-y-1 text-red-600">
               {stats.lowStockProducts.map((p) => (
                 <li key={p._id} className="flex justify-between">
-                  <span>{p.name}</span>
+                  <span>
+                    {p.name}
+                    {p.variant ? ` (${p.variant})` : ""}
+                  </span>
                   <span className="font-bold">{p.stock}</span>
                 </li>
               ))}
@@ -141,16 +180,55 @@ export default function Dashboard() {
 
       {/* Monthly Sales Chart */}
       <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">Monthly Sales</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl md:text-2xl font-semibold">Monthly Sales</h2>
+          <select
+            value={monthsToShow}
+            onChange={(e) => setMonthsToShow(Number(e.target.value))}
+            className="select select-bordered select-sm"
+          >
+            <option value={3}>Last 3 months</option>
+            <option value={6}>Last 6 months</option>
+            <option value={12}>Last 12 months</option>
+          </select>
+        </div>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData || []} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
+          <BarChart
+            data={chartData || []}
+            margin={{ top: 20, right: 20, bottom: 20, left: 0 }}
+          >
             <XAxis dataKey="month" />
             <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
-            <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-            <Tooltip />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              stroke="#82ca9d"
+              tickFormatter={(val) =>
+                `₱${val.toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })}`
+              }
+            />
+            <Tooltip
+              formatter={(val, name) =>
+                name === "Revenue (₱)"
+                  ? `₱${val.toLocaleString()}`
+                  : val.toLocaleString()
+              }
+            />
             <Legend />
-            <Bar yAxisId="left" dataKey="itemsSold" fill="#8884d8" name="Items Sold" />
-            <Bar yAxisId="right" dataKey="totalRevenue" fill="#82ca9d" name="Revenue (₱)" />
+            <Bar
+              yAxisId="left"
+              dataKey="itemsSold"
+              fill="#8884d8"
+              name="Items Sold"
+            />
+            <Bar
+              yAxisId="right"
+              dataKey="totalRevenue"
+              fill="#82ca9d"
+              name="Revenue (₱)"
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -165,32 +243,58 @@ export default function Dashboard() {
               <th>User</th>
               <th>Items</th>
               <th>Total Amount</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {stats.latestSales?.length > 0 ? (
               stats.latestSales.map((sale) => (
-                <tr key={sale._id}>
-                  <td>{sale.date ? new Date(sale.date).toLocaleDateString() : "N/A"}</td>
+                                <tr key={sale._id}>
+                  <td>
+                    {sale.date
+                      ? new Date(sale.date).toLocaleString()
+                      : "N/A"}
+                  </td>
                   <td>{sale.user?.name || "N/A"}</td>
                   <td className="flex flex-wrap items-start gap-1">
-  {sale.items?.map((item) => (
-    <span
-      key={item.product?._id}
-      className="badge badge-sm badge-primary break-words max-w-[120px] truncate"
-    >
-      {item.product?.name || "N/A"} x{item.quantity || 0}
-    </span>
-  ))}
-</td>
+                    {sale.items?.map((item, idx) => {
+                      const variantLabel =
+                        item.variants && item.variants.length > 0
+                          ? ` (${item.variants.map((v) => v.option).join(", ")})`
+                          : "";
+                      return (
+                        <span
+  key={`${item.product?._id || idx}`}
+  className="badge badge-sm badge-primary tooltip cursor-help border-b border-dotted whitespace-normal break-words"
+  data-tip={`${item.product?.name || "N/A"}${variantLabel} × ${item.quantity || 0}`}
+>
+  <span className="truncate max-w-[160px] inline-block align-middle">
+    {item.product?.name || "N/A"}{variantLabel} × {item.quantity || 0}
+  </span>
+</span>
 
 
-                  <td className="font-semibold text-success">₱{sale.totalAmount?.toLocaleString() || 0}</td>
+                      );
+                    })}
+                  </td>
+                  <td className="font-semibold text-success">
+                    ₱{sale.totalAmount?.toLocaleString() || 0}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-xs btn-outline btn-primary"
+                      onClick={() => generatePDF(sale)}
+                    >
+                      View Invoice
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="text-center">No sales found</td>
+                <td colSpan={5} className="text-center">
+                  No sales found
+                </td>
               </tr>
             )}
           </tbody>
@@ -199,7 +303,9 @@ export default function Dashboard() {
 
       {/* Top Products Table */}
       <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">Top Selling Products</h2>
+        <h2 className="text-xl md:text-2xl font-semibold mb-4">
+          Top Selling Products
+        </h2>
         <table className="table table-zebra table-compact w-full">
           <thead>
             <tr>
@@ -213,15 +319,21 @@ export default function Dashboard() {
               stats.topProducts.map((p) => (
                 <tr key={p._id}>
                   <td className="font-medium">{p.name}</td>
-                  <td className="text-warning">₱{p.price?.toLocaleString() || 0}</td>
+                  <td className="text-warning">
+                    ₱{p.price?.toLocaleString() || 0}
+                  </td>
                   <td>
-                    <span className="badge badge-sm badge-success">{p.totalSold || 0}</span>
+                    <span className="badge badge-sm badge-success">
+                      {p.totalSold || 0}
+                    </span>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={3} className="text-center">No product data</td>
+                <td colSpan={3} className="text-center">
+                  No product data
+                </td>
               </tr>
             )}
           </tbody>
@@ -230,4 +342,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

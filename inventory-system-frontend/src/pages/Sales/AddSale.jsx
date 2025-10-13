@@ -138,6 +138,9 @@ export default function AddSale() {
       setMessage("✅ Sale recorded successfully!");
       setItems([{ product: "", quantity: 1, search: "", variants: [] }]);
       fetchProducts(); // refresh stock
+
+      // 🔑 Auto-open invoice PDF
+      generatePDF(data);
     } catch (err) {
       console.error(err);
       setMessage("❌ " + err.message);
@@ -237,7 +240,7 @@ export default function AddSale() {
                       {selectedProduct.variants.map((v) => (
                         <option key={v.name} value={v.name} disabled={v.stock === 0}>
                           {v.name} — ₱{v.price} (Stock: {v.stock})
-                          {v.stock === 0 ? " — Out of stock" : ""}
+                                                  {v.stock === 0 ? " — Out of stock" : ""}
                         </option>
                       ))}
                     </select>
@@ -270,7 +273,8 @@ export default function AddSale() {
                   max={quantityMax}
                   value={item.quantity}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value) || 1;
+                    let val = parseInt(e.target.value) || 1;
+                    if (quantityMax && val > quantityMax) val = quantityMax; // 🔑 clamp to stock
                     handleChange(index, "quantity", val);
                   }}
                   required

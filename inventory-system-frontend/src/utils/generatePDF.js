@@ -75,23 +75,29 @@ export const generatePDF = async (sale) => {
       }
     }
 
-    // ===== TABLE =====
+   // ===== TABLE =====
     const tableBody = itemsArr.map((item) => {
-      const name = item.product?.name || "Unknown Product";
+      const baseName = item.product?.name || "Unknown Product";
+      const variantLabel =
+        item.variants && item.variants.length > 0
+          ? ` (${item.variants.map((v) => v.option).join(", ")})`
+          : "";
+      const displayName = `${baseName}${variantLabel}`;
+
       const qty = item.quantity ?? 0;
       const unit =
         typeof item.priceAtSale === "number"
           ? item.priceAtSale
           : item.product?.price ?? 0;
       const subtotal = unit * qty;
+
       return [
-        name,
+        displayName,
         qty,
         `P${unit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
         `P${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       ];
     });
-
     autoTable(doc, {
       head: [["Product", "Qty", "Unit Price", "Total"]],
       body: tableBody,

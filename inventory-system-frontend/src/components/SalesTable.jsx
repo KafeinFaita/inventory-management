@@ -24,7 +24,11 @@ export default function SalesTable({ sales = [] }) {
         const matchesSearch =
           sale.user?.name?.toLowerCase().includes(searchLower) ||
           sale.items.some((i) =>
-            (i.product?.name || "Unknown").toLowerCase().includes(searchLower)
+            (i.product?.name || "Unknown").toLowerCase().includes(searchLower) ||
+            (i.variants &&
+              i.variants.some((v) =>
+                v.option?.toLowerCase().includes(searchLower)
+              ))
           );
         return monthMatch && yearMatch && matchesSearch;
       })
@@ -82,7 +86,7 @@ export default function SalesTable({ sales = [] }) {
         <div className="flex flex-wrap gap-2 items-center min-w-full">
           <input
             type="text"
-            placeholder="Search by product or user..."
+            placeholder="Search by product, variant, or user..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input input-bordered input-sm flex-1 min-w-0"
@@ -168,14 +172,21 @@ export default function SalesTable({ sales = [] }) {
                     <td>{new Date(sale.createdAt).toLocaleDateString()}</td>
                     <td>{sale.user?.name || "N/A"}</td>
                     <td className="flex flex-wrap gap-1 max-w-xs">
-                      {sale.items.map((i, idx) => (
-                        <span
-                          key={`${sale._id}-${i.product?._id || i._id || idx}`}
-                          className="badge badge-sm badge-primary truncate"
-                        >
-                          {i.product?.name || "Unknown"} × {i.quantity}
-                        </span>
-                      ))}
+                      {sale.items.map((i, idx) => {
+                        const variantLabel =
+                          i.variants && i.variants.length > 0
+                            ? ` (${i.variants.map((v) => v.option).join(", ")})`
+                            : "";
+                        return (
+                          <span
+                            key={`${sale._id}-${i.product?._id || i._id || idx}`}
+                            className="badge badge-sm badge-primary truncate"
+                          >
+                            {i.product?.name || "Unknown"}
+                            {variantLabel} × {i.quantity}
+                          </span>
+                        );
+                      })}
                     </td>
                     <td>{totalQuantity}</td>
                     <td className="font-bold text-success">

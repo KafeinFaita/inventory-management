@@ -4,11 +4,15 @@ import { protect, adminOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Utility: build a variant name string from attributes
+// Utility: build a consistent variant name from attributes
 const buildVariantName = (variant) => {
   if (variant.name && variant.name.trim() !== "") return variant.name;
   if (variant.attributes && Object.keys(variant.attributes).length > 0) {
-    return Object.values(variant.attributes).join(" - ");
+    // Sort keys alphabetically for consistent ordering
+    const parts = Object.keys(variant.attributes)
+      .sort()
+      .map((key) => String(variant.attributes[key]));
+    return parts.join(" - ");
   }
   return "Variant";
 };
@@ -43,7 +47,7 @@ router.post("/", protect, adminOnly, async (req, res) => {
         .json({ error: "Variants must be provided when hasVariants is true." });
     }
 
-    // Ensure each variant has a name
+    // Normalize variants: ensure each has a consistent name
     const normalizedVariants = hasVariants
       ? variants.map((v) => ({
           ...v,
@@ -88,7 +92,7 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
         .json({ error: "Variants must be provided when hasVariants is true." });
     }
 
-    // Ensure each variant has a name
+    // Normalize variants: ensure each has a consistent name
     const normalizedVariants = hasVariants
       ? variants.map((v) => ({
           ...v,

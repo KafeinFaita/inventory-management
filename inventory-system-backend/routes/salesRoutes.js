@@ -143,7 +143,6 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
 
 /* =========================================================
    GET SINGLE SALE INVOICE DATA
-   (PDF-related logic untouched for now)
 ========================================================= */
 router.get("/:id/invoice", protect, allowRoles("admin", "staff"), async (req, res) => {
   try {
@@ -159,13 +158,19 @@ router.get("/:id/invoice", protect, allowRoles("admin", "staff"), async (req, re
       customerName: sale.customerName,
       paymentMethod: sale.paymentMethod,
       user: sale.user,
-      items: sale.items.map((i) => ({
-        name: i.product?.name || i.product,
-        brand: i.product?.brand || undefined,
-        quantity: i.quantity,
-        priceAtSale: i.priceAtSale,
-        subtotal: i.priceAtSale * i.quantity,
-      })),
+      items: sale.items.map((i) => {
+        const variantLabel =
+          i.variants && i.variants.length > 0
+            ? ` (${i.variants.map(v => v.option).join(", ")})`
+            : "";
+        return {
+          name: `${i.product?.name || i.product}${variantLabel}`,
+          brand: i.product?.brand || undefined,
+          quantity: i.quantity,
+          priceAtSale: i.priceAtSale,
+          subtotal: i.priceAtSale * i.quantity,
+        };
+      }),
       totalAmount: sale.totalAmount,
     };
 

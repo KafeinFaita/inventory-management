@@ -9,14 +9,20 @@ export default function ProtectedRoute({ allowedRoles }) {
     const payload = JSON.parse(atob(token.split(".")[1]));
     const userRole = payload.role;
 
+    // 🔑 Expiry check
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
+      localStorage.removeItem("token");
+      return <Navigate to="/login" replace />;
+    }
+
     if (allowedRoles && !allowedRoles.includes(userRole)) {
-      return <Navigate to="/" replace />; // redirect if role not allowed
+      return <Navigate to="/unauthorized" replace />; // friendlier redirect
     }
   } catch (err) {
     console.error("Invalid token:", err);
+    localStorage.removeItem("token");
     return <Navigate to="/login" replace />;
   }
 
   return <Outlet />;
 }
-
