@@ -42,7 +42,7 @@ router.get("/", protect, async (req, res) => {
       }
     }
 
-    // 3️⃣ Monthly sales (zero-filled)
+    // 3️⃣ Monthly sales (rolling 12 months, zero-filled, with year)
     const monthNames = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -52,21 +52,35 @@ router.get("/", protect, async (req, res) => {
       { $unwind: "$items" },
       {
         $group: {
-          _id: { $month: "$date" },
+          _id: {
+            year: { $year: "$date" },
+            month: { $month: "$date" }
+          },
           totalItemsSold: { $sum: "$items.quantity" },
           totalRevenue: { $sum: "$totalAmount" },
         },
       },
+      { $sort: { "_id.year": 1, "_id.month": 1 } }
     ]);
 
-    const monthlySales = monthNames.map((month, index) => {
-      const monthData = salesByMonth.find((m) => m._id === index + 1);
-      return {
-        month,
+    const now = new Date();
+    const monthlySales = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const monthIndex = d.getMonth(); // 0–11
+      const monthName = monthNames[monthIndex];
+
+      const monthData = salesByMonth.find(
+        (m) => m._id.year === year && m._id.month === monthIndex + 1
+      );
+
+      monthlySales.push({
+        month: `${monthName} ${year}`, // e.g. "Oct 2025"
         itemsSold: monthData?.totalItemsSold || 0,
         totalRevenue: monthData?.totalRevenue || 0,
-      };
-    });
+      });
+    }
 
     // 4️⃣ Latest 10 sales
     const latestSales = await Sale.find()

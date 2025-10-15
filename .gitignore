@@ -6,3 +6,6 @@ dist/
 
 # VSCode
 .vscode/
+
+# Ignore backend uploads
+inventory-system-backend/uploads/

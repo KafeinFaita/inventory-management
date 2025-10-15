@@ -69,10 +69,8 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
-  const chartData = (() => {
-    const sales = stats.monthlySales || [];
-    return sales.slice(-monthsToShow);
-  })();
+  const chartData = (stats.monthlySales || []).slice(-monthsToShow);
+
 
   const totalRevenue = (stats.monthlySales || []).reduce(
     (sum, m) => sum + (m.totalRevenue || 0),

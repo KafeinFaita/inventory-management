@@ -224,7 +224,7 @@ export default function DashboardLayout() {
                 className={linkClass("/settings")}
                 onClick={() => setSidebarOpen(false)}
               >
-                <FaCog /> <span>Settings</span>
+                <FaCog /> <span>App Settings</span>
               </Link>
             </li>
           )}
