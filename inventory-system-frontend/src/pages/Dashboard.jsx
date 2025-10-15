@@ -28,6 +28,7 @@ export default function Dashboard() {
     monthlySales: [],
     latestSales: [],
     topProducts: [],
+    staffStats: [], // 👈 added
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -57,6 +58,7 @@ export default function Dashboard() {
           lowStockProducts: data.lowStockProducts || [],
           latestSales: data.latestSales || [],
           topProducts: data.topProducts || [],
+          staffStats: data.staffStats || [], // 👈 added
         });
       } catch (err) {
         console.error(err);
@@ -69,8 +71,10 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
-  const chartData = (stats.monthlySales || []).slice(-monthsToShow);
-
+  const chartData = (() => {
+    const sales = stats.monthlySales || [];
+    return sales.slice(-monthsToShow);
+  })();
 
   const totalRevenue = (stats.monthlySales || []).reduce(
     (sum, m) => sum + (m.totalRevenue || 0),
@@ -157,23 +161,23 @@ export default function Dashboard() {
 
         {/* Low Stock Alerts */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-  <h2 className="text-lg font-semibold mb-2">Low Stock Alerts</h2>
-  {stats.lowStockProducts.length === 0 ? (
-    <p className="text-gray-500">No low stock items 🎉</p>
-  ) : (
-    <ul className="mt-2 space-y-1 text-red-600">
-      {stats.lowStockProducts.map((p) => (
-        <li key={`${p._id}-${p.variant || "base"}`} className="flex justify-between">
-          <span>
-            {p.name}
-            {p.variant ? ` (${p.variant})` : ""}
-          </span>
-          <span className="font-bold">{p.stock}</span>
-        </li>
-      ))}
-    </ul>
-  )}
-</div>
+          <h2 className="text-lg font-semibold mb-2">Low Stock Alerts</h2>
+          {stats.lowStockProducts.length === 0 ? (
+            <p className="text-gray-500">No low stock items 🎉</p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-red-600">
+              {stats.lowStockProducts.map((p) => (
+                <li key={`${p._id}-${p.variant || "base"}`} className="flex justify-between">
+                  <span>
+                    {p.name}
+                    {p.variant ? ` (${p.variant})` : ""}
+                  </span>
+                  <span className="font-bold">{p.stock}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {/* Monthly Sales Chart */}
@@ -247,7 +251,7 @@ export default function Dashboard() {
           <tbody>
             {stats.latestSales?.length > 0 ? (
               stats.latestSales.map((sale) => (
-                                <tr key={sale._id}>
+                <tr key={sale._id}>
                   <td>
                     {sale.date
                       ? new Date(sale.date).toLocaleString()
@@ -262,16 +266,14 @@ export default function Dashboard() {
                           : "";
                       return (
                         <span
-  key={`${item.product?._id || idx}`}
-  className="badge badge-sm badge-primary tooltip cursor-help border-b border-dotted whitespace-normal break-words"
-  data-tip={`${item.product?.name || "N/A"}${variantLabel} × ${item.quantity || 0}`}
->
-  <span className="truncate max-w-[160px] inline-block align-middle">
-    {item.product?.name || "N/A"}{variantLabel} × {item.quantity || 0}
-  </span>
-</span>
-
-
+                          key={`${item.product?._id || idx}`}
+                          className="badge badge-sm badge-primary tooltip cursor-help border-b border-dotted whitespace-normal break-words"
+                          data-tip={`${item.product?.name || "N/A"}${variantLabel} × ${item.quantity || 0}`}
+                        >
+                          <span className="truncate max-w-[160px] inline-block align-middle">
+                            {item.product?.name || "N/A"}{variantLabel} × {item.quantity || 0}
+                          </span>
+                        </span>
                       );
                     })}
                   </td>
@@ -331,6 +333,45 @@ export default function Dashboard() {
               <tr>
                 <td colSpan={3} className="text-center">
                   No product data
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Staff Performance Table */}
+      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
+        <h2 className="text-xl md:text-2xl font-semibold mb-4">Staff Performance</h2>
+        <table className="table table-zebra table-compact w-full">
+          <thead>
+            <tr>
+              <th>Staff</th>
+              <th>Total Sales</th>
+              <th>Items Sold</th>
+              <th>Total Revenue</th>
+              <th>Avg Sale Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.staffStats?.length > 0 ? (
+              stats.staffStats.map((s) => (
+                <tr key={s.staffId}>
+                  <td className="font-medium">{s.staffName}</td>
+                  <td>{s.totalSales}</td>
+                  <td>{s.totalItemsSold}</td>
+                  <td className="text-success font-semibold">
+                    ₱{(s.totalRevenue || 0).toLocaleString()}
+                  </td>
+                  <td>
+                    ₱{(s.avgSaleValue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5} className="text-center">
+                  No staff data
                 </td>
               </tr>
             )}

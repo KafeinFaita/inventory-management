@@ -4,6 +4,7 @@ import Product from "../models/Product.js";
 import Brand from "../models/Brand.js";
 import Category from "../models/Category.js";
 import Sale from "../models/Sale.js";
+import User from "../models/User.js"; // 👈 needed for staff stats
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -26,7 +27,7 @@ router.get("/", protect, async (req, res) => {
             lowStockProducts.push({
               _id: p._id,
               name: p.name,
-              variant: v.name,   // e.g. "Red - M"
+              variant: v.name,
               stock: v.stock,
             });
           }
@@ -68,7 +69,7 @@ router.get("/", protect, async (req, res) => {
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const year = d.getFullYear();
-      const monthIndex = d.getMonth(); // 0–11
+      const monthIndex = d.getMonth();
       const monthName = monthNames[monthIndex];
 
       const monthData = salesByMonth.find(
@@ -76,7 +77,7 @@ router.get("/", protect, async (req, res) => {
       );
 
       monthlySales.push({
-        month: `${monthName} ${year}`, // e.g. "Oct 2025"
+        month: `${monthName} ${year}`,
         itemsSold: monthData?.totalItemsSold || 0,
         totalRevenue: monthData?.totalRevenue || 0,
       });
@@ -92,11 +93,11 @@ router.get("/", protect, async (req, res) => {
     // 5️⃣ Top 5 selling products
     const topProductsAgg = await Sale.aggregate([
       { $unwind: "$items" },
-      { 
-        $group: { 
-          _id: "$items.product", 
-          totalSold: { $sum: "$items.quantity" } 
-        } 
+      {
+        $group: {
+          _id: "$items.product",
+          totalSold: { $sum: "$items.quantity" }
+        }
       },
       { $sort: { totalSold: -1 } },
       { $limit: 5 }
@@ -118,6 +119,35 @@ router.get("/", protect, async (req, res) => {
       })
       .filter(p => p !== null);
 
+    // 6️⃣ Staff performance
+    const salesByStaffAgg = await Sale.aggregate([
+      {
+        $group: {
+          _id: "$user",
+          totalRevenue: { $sum: "$totalAmount" },
+          totalItemsSold: { $sum: { $sum: "$items.quantity" } },
+          totalSales: { $sum: 1 }
+        }
+      },
+      { $sort: { totalRevenue: -1 } }
+    ]);
+
+    const staffStats = await Promise.all(
+      salesByStaffAgg.map(async (s) => {
+        const staff = await User.findById(s._id).select("name email role");
+        return {
+          staffId: s._id,
+          staffName: staff?.name || "Unknown",
+          staffEmail: staff?.email || "",
+          role: staff?.role || "",
+          totalRevenue: s.totalRevenue,
+          totalItemsSold: s.totalItemsSold,
+          totalSales: s.totalSales,
+          avgSaleValue: s.totalRevenue / s.totalSales || 0
+        };
+      })
+    );
+
     res.json({
       totalProducts,
       totalBrands,
@@ -125,7 +155,8 @@ router.get("/", protect, async (req, res) => {
       lowStockProducts,
       monthlySales,
       latestSales,
-      topProducts: topProductsWithQty
+      topProducts: topProductsWithQty,
+      staffStats
     });
 
   } catch (err) {

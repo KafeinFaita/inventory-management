@@ -3,21 +3,177 @@ import express from "express";
 import Sale from "../models/Sale.js";
 import Product from "../models/Product.js";
 import { protect, allowRoles } from "../middleware/authMiddleware.js";
+import { Parser } from "json2csv";
 
 const router = express.Router();
 
 /* =========================================================
    GET ALL SALES (admin + staff)
 ========================================================= */
-router.get("/", protect, allowRoles("admin", "staff"), async (req, res) => {
+// GET /api/sales
+router.get("/", protect, async (req, res) => {
   try {
-    const sales = await Sale.find()
-      .populate("user", "name email role")
-      .populate("items.product", "name price");
+    let { start, end, staff, category, brand, product } = req.query;
+
+    // Normalize query params
+    const normalize = (val) =>
+      val && val !== "undefined" && val !== "null" && val !== "" ? val : null;
+
+    staff = normalize(staff);
+    product = normalize(product);
+    brand = normalize(brand);
+    category = normalize(category);
+
+    // Build query
+    const query = {};
+    if (start || end) {
+      query.createdAt = {};
+      if (start) query.createdAt.$gte = new Date(start);
+      if (end) {
+        const endDate = new Date(end);
+        endDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = endDate;
+      }
+    }
+    if (staff) query.user = staff;
+    if (product) query["items.product"] = product;
+
+    // Fetch sales
+    let sales = await Sale.find(query)
+      .populate("user", "name email")
+      .populate("items.product", "name brand category");
+
+    // Apply brand/category filters in-memory
+    if (brand) {
+      sales = sales.filter((s) =>
+        s.items.some(
+          (i) => i.product?.brand?.toLowerCase() === brand.toLowerCase()
+        )
+      );
+    }
+    if (category) {
+      sales = sales.filter((s) =>
+        s.items.some(
+          (i) => i.product?.category?.toLowerCase() === category.toLowerCase()
+        )
+      );
+    }
+
     res.json(sales);
   } catch (err) {
     console.error("Error fetching sales:", err);
     res.status(500).json({ error: "Failed to fetch sales data" });
+  }
+});
+
+/* =========================================================
+   EXPORT SALES REPORT (CSV with filters)
+   Admin only
+   Query params supported:
+   - start=YYYY-MM-DD
+   - end=YYYY-MM-DD
+   - staff=<userId>
+   - category=<string>
+   - brand=<string>
+   - product=<productId>
+   - sort=date|amount|staff
+   - order=asc|desc
+========================================================= */
+
+router.get("/export", protect, allowRoles("admin"), async (req, res) => {
+  try {
+    let { start, end, staff, category, brand, product, sort, order } = req.query;
+
+    // ✅ Defensive guards: normalize empty/invalid values
+    const normalize = (val) =>
+      val && val !== "undefined" && val !== "null" && val !== "" ? val : null;
+
+    staff = normalize(staff);
+    product = normalize(product);
+    brand = normalize(brand);
+    category = normalize(category);
+
+    // Build query safely
+    const query = {};
+    if (start || end) {
+      query.createdAt = {};
+      if (start) query.createdAt.$gte = new Date(start);
+      if (end) {
+        const endDate = new Date(end);
+        endDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = endDate;
+      }
+    }
+    if (staff) query.user = staff; // staff is a user ID
+    if (product) query["items.product"] = product;
+
+    // Fetch sales with population
+    let sales = await Sale.find(query)
+      .populate("user", "name email")
+      .populate("items.product", "name brand category");
+
+    // Filter by brand/category (string match)
+    if (brand) {
+      sales = sales.filter((s) =>
+        s.items.some(
+          (i) => i.product?.brand?.toLowerCase() === brand.toLowerCase()
+        )
+      );
+    }
+    if (category) {
+      sales = sales.filter((s) =>
+        s.items.some(
+          (i) => i.product?.category?.toLowerCase() === category.toLowerCase()
+        )
+      );
+    }
+
+    // Sorting
+    if (sort) {
+      const dir = order === "asc" ? 1 : -1;
+      sales.sort((a, b) => {
+        if (sort === "date") return (a.createdAt - b.createdAt) * dir;
+        if (sort === "amount") return (a.totalAmount - b.totalAmount) * dir;
+        if (sort === "staff")
+          return (a.user?.name || "").localeCompare(b.user?.name || "") * dir;
+        return 0;
+      });
+    }
+
+    // Flatten into rows for CSV
+    const rows = sales.map((s) => ({
+      invoiceNumber: s.invoiceNumber,
+      date: s.createdAt.toISOString(),
+      staff: s.user?.name || "Unknown",
+      customer: s.customerName || "Walk-in",
+      totalAmount: s.totalAmount,
+      items: s.items
+        .map((i) => {
+          const variantLabel =
+            i.variants && i.variants.length > 0
+              ? ` (${i.variants.map((v) => v.option).join(", ")})`
+              : "";
+          return `${i.product?.name || "N/A"}${variantLabel} x${i.quantity}`;
+        })
+        .join("; "),
+      brands: [
+        ...new Set(s.items.map((i) => i.product?.brand).filter(Boolean)),
+      ].join(", "),
+      categories: [
+        ...new Set(s.items.map((i) => i.product?.category).filter(Boolean)),
+      ].join(", "),
+    }));
+
+    // Convert to CSV
+    const parser = new Parser();
+    const csv = parser.parse(rows);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("sales-report.csv");
+    return res.send(csv);
+  } catch (err) {
+    console.error("Error exporting sales:", err);
+    res.status(500).json({ error: "Failed to export sales report" });
   }
 });
 
