@@ -160,24 +160,29 @@ export default function Dashboard() {
         ))}
 
         {/* Low Stock Alerts */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-semibold mb-2">Low Stock Alerts</h2>
-          {stats.lowStockProducts.length === 0 ? (
-            <p className="text-gray-500">No low stock items 🎉</p>
-          ) : (
-            <ul className="mt-2 space-y-1 text-red-600">
-              {stats.lowStockProducts.map((p) => (
-                <li key={`${p._id}-${p.variant || "base"}`} className="flex justify-between">
-                  <span>
-                    {p.name}
-                    {p.variant ? ` (${p.variant})` : ""}
-                  </span>
-                  <span className="font-bold">{p.stock}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <div className="card bg-base-100 shadow">
+  <div className="card-body">
+    <h2 className="card-title text-error">Low Stock Alerts</h2>
+    {stats.lowStockProducts.length === 0 ? (
+      <p className="text-base-content">No low stock items 🎉</p>
+    ) : (
+      <ul className="mt-2 space-y-1 text-error">
+        {stats.lowStockProducts.map((p) => (
+          <li
+            key={`${p._id}-${p.variant || "base"}`}
+            className="flex justify-between"
+          >
+            <span>
+              {p.name}
+              {p.variant ? ` (${p.variant})` : ""}
+            </span>
+            <span className="font-bold">{p.stock}</span>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</div>
       </div>
 
       {/* Monthly Sales Chart */}
