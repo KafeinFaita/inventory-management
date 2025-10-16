@@ -166,9 +166,9 @@ export default function Inventory() {
       brand,
       category,
       hasVariants,
-      variants: hasVariants ? variantCombinations : [],
-      stock: hasVariants ? 0 : nonVariantStock,
-      price: hasVariants ? 0 : nonVariantPrice,
+      ...(hasVariants
+        ? { variants: variantCombinations }   // ✅ only variants
+        : { stock: nonVariantStock, price: nonVariantPrice }) // ✅ only parent stock/price
     };
 
     try {

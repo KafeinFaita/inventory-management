@@ -1,28 +1,25 @@
 // src/pages/Sales/AddSale.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { API_URL } from "../../config";
 import { generatePDF } from "../../utils/generatePDF";
-
-const generateInvoiceId = () => {
-  const now = new Date();
-  return `INV-${now.getFullYear()}${(now.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}-${Math.floor(
-    Math.random() * 1000
-  )}`;
-};
+import ConfirmModal from "../../components/ConfirmModal";
 
 export default function AddSale() {
   const [products, setProducts] = useState([]);
-  const [items, setItems] = useState([
-    { product: "", quantity: 1, search: "", variants: [] },
-  ]);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [items, setItems] = useState([]); // empty cart by default
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [recentSale, setRecentSale] = useState(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  // Controls
+  const [search, setSearch] = useState("");
+  const [filterBrand, setFilterBrand] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [sortBy, setSortBy] = useState("alpha");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   // Fetch products
   const fetchProducts = async () => {
@@ -51,43 +48,89 @@ export default function AddSale() {
     fetchProducts();
   }, []);
 
-  const addItem = () =>
-    setItems([...items, { product: "", quantity: 1, search: "", variants: [] }]);
-  const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
+  // Brand/category options
+  const brandOptions = useMemo(
+    () => Array.from(new Set(products.map((p) => p.brand).filter(Boolean))).sort(),
+    [products]
+  );
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort(),
+    [products]
+  );
 
-  const handleChange = (index, field, value) => {
-    const updated = [...items];
-    updated[index][field] = value;
-    // When product changes, reset selected variant
-    if (field === "product") {
-      updated[index].variants = [];
+  // Filter/sort
+  const filteredProducts = useMemo(() => {
+    return products
+      .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+      .filter((p) => (filterBrand ? p.brand === filterBrand : true))
+      .filter((p) => (filterCategory ? p.category === filterCategory : true))
+      .sort((a, b) => {
+        switch (sortBy) {
+          case "priceAsc":
+            return a.price - b.price;
+          case "priceDesc":
+            return b.price - a.price;
+          case "alphaDesc":
+            return b.name.localeCompare(a.name);
+          default:
+            return a.name.localeCompare(b.name);
+        }
+      });
+  }, [products, search, filterBrand, filterCategory, sortBy]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Add to cart
+  const addSimpleProduct = (p) => {
+    const existingIndex = items.findIndex((i) => i.product === p._id && (i.variants?.length || 0) === 0);
+    if (existingIndex >= 0) {
+      const updated = [...items];
+      updated[existingIndex].quantity = Math.min(updated[existingIndex].quantity + 1, p.stock ?? Infinity);
+      setItems(updated);
+    } else {
+      setItems([...items, { product: p._id, quantity: 1, variants: [] }]);
     }
-    setItems(updated);
   };
 
-  // Variant selection: store a single entry with full variant name
-  const handleVariantSelect = (itemIndex, selectedName) => {
-    const updated = [...items];
-    updated[itemIndex].variants = [{ category: "Variant", option: selectedName }];
-    setItems(updated);
+  const addVariantProduct = (p, variantName) => {
+    const existingIndex = items.findIndex(
+      (i) => i.product === p._id && i.variants?.[0]?.option === variantName
+    );
+    const v = p.variants.find((vv) => vv.name === variantName);
+    if (!v) return;
+
+    if (existingIndex >= 0) {
+      const updated = [...items];
+      updated[existingIndex].quantity = Math.min(updated[existingIndex].quantity + 1, v.stock ?? Infinity);
+      setItems(updated);
+    } else {
+      setItems([
+        ...items,
+        { product: p._id, quantity: 1, variants: [{ category: "Variant", option: variantName }] },
+      ]);
+    }
   };
 
+  // Totals
   const calculateTotal = () => {
     return items.reduce((sum, item) => {
       const prod = products.find((p) => p._id === item.product);
       if (!prod) return sum;
-
       if (prod.hasVariants && item.variants?.length > 0) {
         const selectedName = item.variants[0]?.option;
         const variant = prod.variants.find((v) => v.name === selectedName);
         return sum + (variant?.price || 0) * item.quantity;
       }
-
-      return sum + prod.price * item.quantity;
+      return sum + (prod.price || 0) * item.quantity;
     }, 0);
   };
 
-  // Validate quantities against stock
+  // Validate quantities
   const validateQuantities = () => {
     for (const item of items) {
       const product = products.find((p) => p._id === item.product);
@@ -110,11 +153,10 @@ export default function AddSale() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Pure submit logic
+  const submitSale = async () => {
     setIsSubmitting(true);
     setMessage("");
-
     try {
       validateQuantities();
 
@@ -133,13 +175,9 @@ export default function AddSale() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save sale");
 
-      setRecentSale(data);
-      setShowInvoiceModal(true);
       setMessage("✅ Sale recorded successfully!");
-      setItems([{ product: "", quantity: 1, search: "", variants: [] }]);
-      fetchProducts(); // refresh stock
-
-      // 🔑 Auto-open invoice PDF
+      setItems([]);
+      fetchProducts();
       generatePDF(data);
     } catch (err) {
       console.error(err);
@@ -149,28 +187,48 @@ export default function AddSale() {
     }
   };
 
-  if (loading)
-    return (
-      <div className="flex justify-center items-center h-64">
-        <span className="loading loading-spinner loading-lg text-primary"></span>
-        <span className="ml-3 text-lg text-gray-600">Loading products...</span>
-      </div>
-    );
+  // Form wrapper
+  const handleSubmit = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    submitSale();
+  };
 
-  if (error)
-    return (
-      <div className="alert alert-error shadow-lg">
-        <div className="flex items-center justify-between w-full">
-          <span>{error}</span>
-          <button className="btn btn-sm btn-primary ml-4" onClick={fetchProducts}>
-            Retry
-          </button>
-        </div>
+  const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
+  const updateQty = (index, delta) => {
+    const updated = [...items];
+    updated[index].quantity = Math.max(1, updated[index].quantity + delta);
+
+    const prod = products.find((p) => p._id === updated[index].product);
+    if (prod) {
+      if (prod.hasVariants && updated[index].variants?.length > 0) {
+        const selectedName = updated[index].variants[0]?.option;
+        const variant = prod.variants.find((v) => v.name === selectedName);
+        if (variant) updated[index].quantity = Math.min(updated[index].quantity, variant.stock);
+      } else {
+        updated[index].quantity = Math.min(updated[index].quantity, prod.stock);
+      }
+    }
+    setItems(updated);
+  };
+
+  if (loading) return <div className="flex justify-center items-center h-64">
+    <span className="loading loading-spinner loading-lg text-primary"></span>
+    <span className="ml-3 text-lg text-gray-600">Loading products...</span>
+  </div>;
+
+  if (error) return (
+    <div className="alert alert-error shadow-lg">
+      <div className="flex items-center justify-between w-full">
+        <span>{error}</span>
+                <button className="btn btn-sm btn-primary ml-4" onClick={fetchProducts}>
+          Retry
+        </button>
       </div>
-    );
+    </div>
+  );
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6">
       <h1 className="text-3xl font-bold mb-4">Add Sale</h1>
 
       {message && (
@@ -183,145 +241,279 @@ export default function AddSale() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4 bg-base-200 p-4 rounded-lg shadow">
-        {items.map((item, index) => {
-          const filteredProducts = products.filter((p) =>
-            p.name.toLowerCase().includes(item.search.toLowerCase())
-          );
-          const selectedProduct = products.find((p) => p._id === item.product);
+      {/* Two-panel layout */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Left: Product Catalog */}
+        <div className="col-span-2">
+          <h2 className="text-xl font-bold mb-2">Products</h2>
 
-          // compute quantity max respecting variant stock if selected
-          const quantityMax =
-            selectedProduct
-              ? selectedProduct.hasVariants && item.variants?.[0]?.option
-                ? (selectedProduct.variants.find((v) => v.name === item.variants[0].option)?.stock || undefined)
-                : selectedProduct.stock
-              : undefined;
-
-          return (
-            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div>
-                <label className="block font-semibold mb-1">Product</label>
-                <input
-                  type="text"
-                  placeholder="Search product..."
-                  value={item.search}
-                  onChange={(e) => handleChange(index, "search", e.target.value)}
-                  className="input input-bordered w-full mb-1"
-                />
-                <select
-                  value={item.product}
-                  onChange={(e) => handleChange(index, "product", e.target.value)}
-                  required
-                  className="select select-bordered w-full"
-                >
-                  <option value="">Select Product</option>
-                  {filteredProducts.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name}
-                      {p.hasVariants ? "" : ` — ₱${p.price} (${p.stock} in stock)`}
-                    </option>
-                  ))}
-                </select>
-
-                {selectedProduct?.hasVariants && selectedProduct.variants.length > 0 && (
-                  <div className="mt-2">
-                    <label className="text-sm font-semibold">Variant</label>
-                    <select
-                      value={item.variants?.[0]?.option || ""}
-                      onChange={(e) => {
-                        const selectedName = e.target.value;
-                        handleVariantSelect(index, selectedName);
-                      }}
-                      required
-                      className="select select-bordered w-full"
-                    >
-                      <option value="">Select variant</option>
-                      {selectedProduct.variants.map((v) => (
-                        <option key={v.name} value={v.name} disabled={v.stock === 0}>
-                          {v.name} — ₱{v.price} (Stock: {v.stock})
-                                                  {v.stock === 0 ? " — Out of stock" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {selectedProduct && (
-                  <div className="mt-1 text-sm text-gray-600">
-                    {selectedProduct.hasVariants
-                      ? (() => {
-                          const selectedName = item.variants?.[0]?.option;
-                          const v = selectedName
-                            ? selectedProduct.variants.find((vv) => vv.name === selectedName)
-                            : null;
-                          const priceText = v
-                            ? `Price: ₱${v.price}, Stock: ${v.stock}`
-                            : "Variant-based product. Select a variant to view price and stock";
-                          return `${priceText}, Brand: ${selectedProduct.brand || "N/A"}`;
-                        })()
-                      : `Price: ₱${selectedProduct.price}, Stock: ${selectedProduct.stock}, Brand: ${selectedProduct.brand || "N/A"}`}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Quantity</label>
-                <input
-                  type="number"
-                  min="1"
-                  max={quantityMax}
-                  value={item.quantity}
-                  onChange={(e) => {
-                    let val = parseInt(e.target.value) || 1;
-                    if (quantityMax && val > quantityMax) val = quantityMax; // 🔑 clamp to stock
-                    handleChange(index, "quantity", val);
-                  }}
-                  required
-                  className="input input-bordered w-full"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="flex justify-end md:justify-start">
-                {items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeItem(index)}
-                    className="btn btn-error btn-sm mt-6"
-                    disabled={isSubmitting}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
+          {/* Controls */}
+          <div className="overflow-x-auto mb-4 space-y-2">
+            <div>
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="input input-bordered input-sm w-full"
+              />
             </div>
-          );
-        })}
+            <div className="flex flex-wrap gap-2 items-center">
+              <select
+                value={filterBrand}
+                onChange={(e) => {
+                  setFilterBrand(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="select select-bordered select-sm flex-shrink-0"
+              >
+                <option value="">All Brands</option>
+                {brandOptions.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
 
-        <button
-          type="button"
-          onClick={addItem}
-          className="btn btn-outline btn-primary"
-          disabled={isSubmitting}
-        >
-          + Add Another Item
-        </button>
+              <select
+                value={filterCategory}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="select select-bordered select-sm flex-shrink-0"
+              >
+                <option value="">All Categories</option>
+                {categoryOptions.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
 
-        <div className="text-right font-semibold text-lg mt-4">
-          Total: ₱{calculateTotal().toLocaleString()}
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="select select-bordered select-sm flex-shrink-0"
+              >
+                <option value="alpha">Name (A–Z)</option>
+                <option value="alphaDesc">Name (Z–A)</option>
+                <option value="priceAsc">Price (Low → High)</option>
+                <option value="priceDesc">Price (High → Low)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Product Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginatedProducts.length === 0 ? (
+              <p className="text-center text-gray-500 col-span-full">
+                No products found.
+              </p>
+            ) : (
+              paginatedProducts.map((p) => {
+                const totalVariantStock = p.hasVariants
+                  ? p.variants.reduce((sum, v) => sum + (v.stock || 0), 0)
+                  : p.stock || 0;
+                const lowestVariantPrice = p.hasVariants
+                  ? Math.min(...p.variants.map((v) => v.price || 0))
+                  : p.price || 0;
+
+                return (
+                  <div
+                    key={p._id}
+                    className="card bg-base-100 shadow hover:shadow-lg"
+                  >
+                    <div className="card-body">
+                      <h3 className="card-title">{p.name}</h3>
+                      {p.hasVariants ? (
+                        <>
+                          <p className="text-sm text-gray-500">
+                            From ₱{lowestVariantPrice} • {totalVariantStock} in
+                            stock
+                          </p>
+                          <label className="text-sm font-semibold mt-2">
+                            Select Variant
+                          </label>
+                          <select
+                            className="select select-bordered w-full mt-1"
+                            onChange={(e) => {
+                              const selected = p.variants.find(
+                                (v) => v.name === e.target.value
+                              );
+                              if (selected) addVariantProduct(p, selected.name);
+                              e.target.value = "";
+                            }}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Choose a variant
+                            </option>
+                            {p.variants.map((v) => (
+                              <option
+                                key={v.name}
+                                value={v.name}
+                                disabled={v.stock === 0}
+                              >
+                                {v.name} — ₱{v.price} (Stock: {v.stock})
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      ) : (
+                        <>
+                          <p>₱{p.price}</p>
+                          <span
+                            className={`badge ${
+                              p.stock > 0 ? "badge-success" : "badge-error"
+                            }`}
+                          >
+                            {p.stock > 0
+                              ? `${p.stock} in stock`
+                              : "Out of stock"}
+                          </span>
+                          <button
+                            className="btn btn-sm btn-primary mt-2"
+                            disabled={p.stock === 0}
+                            onClick={() => addSimpleProduct(p)}
+                          >
+                            Add
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-center gap-2 mt-4 flex-wrap">
+              <button
+                className="btn btn-sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+              >
+                Prev
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i + 1}
+                  className={`btn btn-sm ${
+                    currentPage === i + 1 ? "btn-active" : ""
+                  }`}
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                className="btn btn-sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
 
-        <button
-          type="submit"
-          className={`btn btn-primary w-full mt-4 ${isSubmitting ? "loading" : ""}`}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Recording Sale..." : "Record Sale"}
-        </button>
-      </form>
+        {/* Right: Cart */}
+        <div className="bg-base-200 p-4 rounded-lg shadow space-y-4">
+          <h2 className="text-xl font-bold">Cart</h2>
+          {items.length === 0 && <p className="text-gray-500">No items yet.</p>}
+          {items.map((item, index) => {
+            const prod = products.find((p) => p._id === item.product);
+            const isVariant = prod?.hasVariants && item.variants?.length > 0;
+            const variantName = isVariant ? item.variants[0]?.option : null;
+            const variant = isVariant
+              ? prod?.variants.find((v) => v.name === variantName)
+              : null;
+            const unitPrice = isVariant
+              ? variant?.price || 0
+              : prod?.price || 0;
+            const maxStock = isVariant
+              ? variant?.stock || 0
+              : prod?.stock || 0;
 
-      {/* Invoice modal code stays the same */}
+            return (
+              <div
+                key={index}
+                className="flex justify-between items-center border-b pb-2"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">
+                    {prod?.name || "Unknown"}{" "}
+                    {variantName && `(${variantName})`}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    ₱{unitPrice} × {item.quantity}{" "}
+                    {maxStock ? `(Stock: ${maxStock})` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-xs"
+                    onClick={() => updateQty(index, -1)}
+                    disabled={item.quantity <= 1}
+                  >
+                    -
+                  </button>
+                  <span>{item.quantity}</span>
+                  <button
+                    type="button"
+                    className="btn btn-xs"
+                    onClick={() => updateQty(index, 1)}
+                    disabled={item.quantity >= maxStock}
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-error"
+                    onClick={() => removeItem(index)}
+                  >
+                    🗑
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="text-right font-bold text-lg">
+            Total: ₱{calculateTotal().toLocaleString()}
+          </div>
+
+                    <button
+            type="button"
+            className={`btn btn-primary w-full ${isSubmitting ? "loading" : ""}`}
+            disabled={isSubmitting || items.length === 0}
+            onClick={() => setShowConfirm(true)}
+          >
+            {isSubmitting ? "Recording Sale..." : "Record Sale"}
+          </button>
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        show={showConfirm}
+        title="Confirm Sale"
+        message="Are you sure you want to record this sale? This action cannot be undone."
+        confirmText="Yes, Record Sale"
+        cancelText="Cancel"
+        onConfirm={submitSale}   // 🔑 call pure logic, no event needed
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

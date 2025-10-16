@@ -6,8 +6,8 @@ const variantSchema = new mongoose.Schema(
   {
     name: { type: String, required: true }, // e.g., "Red - M" or "256GB Black"
     attributes: { type: Object, default: {} }, // flexible: color, size, etc.
-    stock: { type: Number, default: 0 },
-    price: { type: Number, required: true },
+    stock: { type: Number, default: 0, min: 0 },
+    price: { type: Number, required: true, min: 0 },
     // optional: add active flag if you want per-variant control
     // active: { type: Boolean, default: true },
   },
@@ -18,13 +18,25 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
 
-    // Relations (currently stored as strings, can be ObjectId refs later)
     brand: { type: String },
     category: { type: String },
 
     // Stock & pricing
-    stock: { type: Number, default: 0 }, // used if no variants
-    price: { type: Number, required: true }, // base price if no variants
+    stock: {
+      type: Number,
+      default: 0,
+      required: function () {
+        return !this.hasVariants; // only required if no variants
+      },
+      min: 0,
+    },
+    price: {
+      type: Number,
+      required: function () {
+        return !this.hasVariants; // only required if no variants
+      },
+      min: 0,
+    },
 
     // Variants
     hasVariants: { type: Boolean, default: false },

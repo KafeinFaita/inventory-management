@@ -12,12 +12,17 @@ Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZTE2M2ZmNjI0ZjgzOGQ1NTM5YTI1YSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2MDYwOTE0MywiZXhwIjoxNzYxMjEzOTQzfQ.uUDXZIvFGaknTpYiSYnFx45EeAK70HT8vQXkUIt3k0M
 
 {
-  "name": "Test Product",
-  "price": 99.99,
-  "stock": 10,
-  "brand": "TestBrand",
-  "category": "TestCategory",
-  "hasVariants": false
+  "name": "Variant Product",
+  "price": 1,
+  "stock": 1,
+  "hasVariants": true,
+  "variants": []
 }
+
+### Get all categories
+GET http://localhost:5000/api/categories
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZTE2M2ZmNjI0ZjgzOGQ1NTM5YTI1YSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2MDYwOTE0MywiZXhwIjoxNzYxMjEzOTQzfQ.uUDXZIvFGaknTpYiSYnFx45EeAK70HT8vQXkUIt3k0M
+
+
 
 

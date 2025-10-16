@@ -12,11 +12,48 @@ export const validateRequest = (req, res, next) => {
 
 // ✅ Product validation rules
 export const validateProduct = [
-  body("name").trim().notEmpty().withMessage("Product name is required"),
-  body("price").isFloat({ gt: 0 }).withMessage("Price must be greater than 0"),
-  body("stock").optional().isInt({ min: 0 }).withMessage("Stock must be >= 0"),
-  body("hasVariants").optional().isBoolean(),
-  body("variants").optional().isArray(),
+  body("name")
+    .trim()
+    .notEmpty()
+    .withMessage("Product name is required"),
+
+  // Only enforce top-level price if product has no variants
+  body("price")
+    .if((value, { req }) => !req.body.hasVariants)
+    .isFloat({ gt: 0 })
+    .withMessage("Price must be greater than 0 for non-variant products"),
+
+  // Only enforce top-level stock if product has no variants
+  body("stock")
+    .if((value, { req }) => !req.body.hasVariants)
+    .isInt({ min: 0 })
+    .withMessage("Stock must be >= 0 for non-variant products"),
+
+  body("hasVariants")
+    .optional()
+    .isBoolean(),
+
+  // If hasVariants is true, variants must be an array with at least one element
+  body("variants")
+    .if((value, { req }) => req.body.hasVariants)
+    .isArray({ min: 1 })
+    .withMessage("Variants must be provided when hasVariants is true"),
+
+  // ✅ Per-variant validation
+  body("variants.*.price")
+    .if((value, { req }) => req.body.hasVariants)
+    .isFloat({ gt: 0 })
+    .withMessage("Each variant must have a price greater than 0"),
+
+  body("variants.*.stock")
+    .if((value, { req }) => req.body.hasVariants)
+    .isInt({ min: 0 })
+    .withMessage("Each variant must have stock >= 0"),
+
+  body("variants.*.attributes")
+    .if((value, { req }) => req.body.hasVariants)
+    .notEmpty()
+    .withMessage("Each variant must have attributes defined"),
 ];
 
 

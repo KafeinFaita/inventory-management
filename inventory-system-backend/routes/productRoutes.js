@@ -65,14 +65,16 @@ router.post(
           }))
         : [];
 
+      // CREATE PRODUCT
       const product = new Product({
         name,
         brand,
         category,
-        stock: hasVariants ? 0 : stock,
-        price: hasVariants ? 0 : price,
         hasVariants,
         variants: normalizedVariants,
+        ...(hasVariants
+          ? {} // ✅ don’t set parent stock/price
+          : { stock, price }),
       });
 
       await product.save();
@@ -125,10 +127,17 @@ router.put(
       product.name = name;
       product.brand = brand;
       product.category = category;
-      product.stock = hasVariants ? 0 : stock;
-      product.price = hasVariants ? 0 : price;
       product.hasVariants = hasVariants;
       product.variants = normalizedVariants;
+
+      if (hasVariants) {
+        // ✅ clear parent stock/price so they don’t trigger validation
+        product.stock = undefined;
+        product.price = undefined;
+      } else {
+        product.stock = stock;
+        product.price = price;
+      }
 
       await product.save();
       res.json(product);
