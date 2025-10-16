@@ -13,6 +13,7 @@ import salesRoutes from "./routes/salesRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import usersRoutes from "./routes/usersRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
+import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 import Product from "./models/Product.js";
 
@@ -53,6 +54,10 @@ app.use("/api/sales", salesRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/settings", settingsRoutes);
+
+// ✅ Plug in error middleware AFTER routes
+app.use(notFound);
+app.use(errorHandler);
 
 // Connect to MongoDB
 mongoose

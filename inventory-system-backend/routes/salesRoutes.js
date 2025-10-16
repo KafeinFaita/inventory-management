@@ -4,18 +4,20 @@ import Sale from "../models/Sale.js";
 import Product from "../models/Product.js";
 import { protect, allowRoles } from "../middleware/authMiddleware.js";
 import { Parser } from "json2csv";
+import { validateSale } from "../middleware/validator.js";
+import { validateRequest } from "../middleware/validator.js";
+
 
 const router = express.Router();
 
 /* =========================================================
    GET ALL SALES (admin + staff)
+   Only return active sales by default
 ========================================================= */
-// GET /api/sales
 router.get("/", protect, async (req, res) => {
   try {
     let { start, end, staff, category, brand, product } = req.query;
 
-    // Normalize query params
     const normalize = (val) =>
       val && val !== "undefined" && val !== "null" && val !== "" ? val : null;
 
@@ -24,8 +26,7 @@ router.get("/", protect, async (req, res) => {
     brand = normalize(brand);
     category = normalize(category);
 
-    // Build query
-    const query = {};
+    const query = { active: true }; // ✅ only active sales
     if (start || end) {
       query.createdAt = {};
       if (start) query.createdAt.$gte = new Date(start);
@@ -38,12 +39,10 @@ router.get("/", protect, async (req, res) => {
     if (staff) query.user = staff;
     if (product) query["items.product"] = product;
 
-    // Fetch sales
     let sales = await Sale.find(query)
       .populate("user", "name email")
       .populate("items.product", "name brand category");
 
-    // Apply brand/category filters in-memory
     if (brand) {
       sales = sales.filter((s) =>
         s.items.some(
@@ -69,22 +68,11 @@ router.get("/", protect, async (req, res) => {
 /* =========================================================
    EXPORT SALES REPORT (CSV with filters)
    Admin only
-   Query params supported:
-   - start=YYYY-MM-DD
-   - end=YYYY-MM-DD
-   - staff=<userId>
-   - category=<string>
-   - brand=<string>
-   - product=<productId>
-   - sort=date|amount|staff
-   - order=asc|desc
 ========================================================= */
-
 router.get("/export", protect, allowRoles("admin"), async (req, res) => {
   try {
     let { start, end, staff, category, brand, product, sort, order } = req.query;
 
-    // ✅ Defensive guards: normalize empty/invalid values
     const normalize = (val) =>
       val && val !== "undefined" && val !== "null" && val !== "" ? val : null;
 
@@ -93,8 +81,7 @@ router.get("/export", protect, allowRoles("admin"), async (req, res) => {
     brand = normalize(brand);
     category = normalize(category);
 
-    // Build query safely
-    const query = {};
+    const query = { active: true }; // ✅ only active sales
     if (start || end) {
       query.createdAt = {};
       if (start) query.createdAt.$gte = new Date(start);
@@ -104,15 +91,13 @@ router.get("/export", protect, allowRoles("admin"), async (req, res) => {
         query.createdAt.$lte = endDate;
       }
     }
-    if (staff) query.user = staff; // staff is a user ID
+    if (staff) query.user = staff;
     if (product) query["items.product"] = product;
 
-    // Fetch sales with population
     let sales = await Sale.find(query)
       .populate("user", "name email")
       .populate("items.product", "name brand category");
 
-    // Filter by brand/category (string match)
     if (brand) {
       sales = sales.filter((s) =>
         s.items.some(
@@ -128,7 +113,6 @@ router.get("/export", protect, allowRoles("admin"), async (req, res) => {
       );
     }
 
-    // Sorting
     if (sort) {
       const dir = order === "asc" ? 1 : -1;
       sales.sort((a, b) => {
@@ -140,7 +124,6 @@ router.get("/export", protect, allowRoles("admin"), async (req, res) => {
       });
     }
 
-    // Flatten into rows for CSV
     const rows = sales.map((s) => ({
       invoiceNumber: s.invoiceNumber,
       date: s.createdAt.toISOString(),
@@ -164,7 +147,6 @@ router.get("/export", protect, allowRoles("admin"), async (req, res) => {
       ].join(", "),
     }));
 
-    // Convert to CSV
     const parser = new Parser();
     const csv = parser.parse(rows);
 
@@ -179,11 +161,12 @@ router.get("/export", protect, allowRoles("admin"), async (req, res) => {
 
 /* =========================================================
    CREATE SALE (admin + staff)
-   - sanitizes incoming data
-   - checks stock, deducts stock, snapshots priceAtSale
-   - generates invoiceNumber
 ========================================================= */
-router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
+router.post("/",
+  protect,
+  allowRoles("admin", "staff"),
+  validateSale(),
+  validateRequest, async (req, res) => {
   try {
     if ("createdAt" in req.body) delete req.body.createdAt;
     if ("date" in req.body) delete req.body.date;
@@ -208,13 +191,11 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
         return res.status(404).json({ error: `Product not found: ${item.product}` });
       }
 
-      // --- Handle variant products ---
       if (product.hasVariants) {
         if (!item.variants || item.variants.length === 0) {
           return res.status(400).json({ error: `Product ${product.name} requires variant selection.` });
         }
 
-        // Expect a single variant selection: { category: "Variant", option: "<variant name>" }
         const selectedName = item.variants[0]?.option;
         const variant = product.variants.find((v) => v.name === selectedName);
 
@@ -228,18 +209,16 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
           });
         }
 
-        // Deduct stock at variant level
         variant.stock -= item.quantity;
         await product.save();
 
         itemsWithPrice.push({
           product: product._id,
           quantity: item.quantity,
-          priceAtSale: variant.price, // snapshot variant price
+          priceAtSale: variant.price,
           variants: item.variants || [],
         });
       } else {
-        // --- Non-variant products ---
         if (product.stock < item.quantity) {
           return res.status(400).json({
             error: `Insufficient stock for ${product.name}. Available: ${product.stock}`,
@@ -251,13 +230,12 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
         itemsWithPrice.push({
           product: product._id,
           quantity: item.quantity,
-          priceAtSale: product.price, // snapshot base price
+          priceAtSale: product.price,
           variants: [],
         });
       }
     }
 
-    // --- Generate invoiceNumber ---
     const now = new Date();
     const startOfDay = new Date(now);
     startOfDay.setHours(0, 0, 0, 0);
@@ -269,7 +247,6 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
     const datePart = now.toISOString().split("T")[0].replace(/-/g, "");
     const invoiceNumber = `INV-${datePart}-${(saleCountToday + 1).toString().padStart(3, "0")}`;
 
-    // --- Create sale document ---
     const sale = new Sale({
       user: req.user._id,
       items: itemsWithPrice,
@@ -280,11 +257,9 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
 
     await sale.save();
 
-    // Populate for frontend
     const savedSale = await Sale.findById(sale._id)
       .populate("user", "name email role")
       .populate("items.product", "name price brand");
-
     res.status(201).json(savedSale);
   } catch (err) {
     console.error("Error creating sale:", err);
@@ -302,11 +277,11 @@ router.post("/", protect, allowRoles("admin", "staff"), async (req, res) => {
 ========================================================= */
 router.get("/:id/invoice", protect, allowRoles("admin", "staff"), async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.id)
+    const sale = await Sale.findOne({ _id: req.params.id, active: true })
       .populate("user", "name email role")
       .populate("items.product", "name price brand");
 
-    if (!sale) return res.status(404).json({ error: "Sale not found" });
+    if (!sale) return res.status(404).json({ error: "Sale not found or inactive" });
 
     const invoiceData = {
       invoiceNumber: sale.invoiceNumber,
@@ -337,4 +312,24 @@ router.get("/:id/invoice", protect, allowRoles("admin", "staff"), async (req, re
   }
 });
 
+/* =========================================================
+   DELETE SALE (soft delete)
+   Admin only
+========================================================= */
+router.delete("/:id", protect, allowRoles("admin"), async (req, res) => {
+  try {
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) return res.status(404).json({ error: "Sale not found" });
+
+    // ✅ Soft delete instead of hard remove
+    await sale.safeDelete();
+
+    res.json({ message: "Sale deactivated (soft deleted) successfully" });
+  } catch (err) {
+    console.error("Error deleting sale:", err);
+    res.status(500).json({ error: "Failed to delete sale" });
+  }
+});
+
 export default router;
+   

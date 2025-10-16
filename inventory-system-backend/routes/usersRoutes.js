@@ -2,6 +2,9 @@
 import express from "express";
 import User from "../models/User.js";
 import { protect, adminOnly } from "../middleware/authMiddleware.js";
+import { validateUserCreate, validateUserUpdate } from "../middleware/validator.js";
+import { validateRequest } from "../middleware/validator.js";
+
 
 const router = express.Router();
 
@@ -36,7 +39,7 @@ router.put("/change-password", protect, async (req, res) => {
 // GET all users
 router.get("/", protect, adminOnly, async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const users = await User.find({ active: true }).select("-password");
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -44,7 +47,7 @@ router.get("/", protect, adminOnly, async (req, res) => {
 });
 
 // POST create a new user
-router.post("/", protect, adminOnly, async (req, res) => {
+router.post("/", protect, adminOnly, validateUserCreate(),validateRequest, async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
@@ -72,8 +75,8 @@ router.post("/", protect, adminOnly, async (req, res) => {
 // GET single user by ID
 router.get("/:id", protect, adminOnly, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-password");
-    if (!user) return res.status(404).json({ error: "User not found" });
+    const user = await User.findOne({ _id: req.params.id, active: true }).select("-password");
+    if (!user) return res.status(404).json({ error: "User not found or inactive" });
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -81,7 +84,7 @@ router.get("/:id", protect, adminOnly, async (req, res) => {
 });
 
 // PUT update user
-router.put("/:id", protect, adminOnly, async (req, res) => {
+router.put("/:id", protect, adminOnly, validateUserUpdate(),validateRequest, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -112,8 +115,10 @@ router.delete("/:id", protect, adminOnly, async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    await user.remove();
-    res.json({ message: "User deleted successfully" });
+    // 👇 Use safe delete instead of hard remove
+    await user.safeDelete();
+
+    res.json({ message: "User deactivated (soft deleted) successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

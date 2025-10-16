@@ -1,6 +1,8 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { validateRegister, validateLogin } from "../middleware/validator.js";
+import { validateRequest } from "../middleware/validator.js";
 
 const router = express.Router();
 
@@ -9,77 +11,69 @@ const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
 
-// Helper: validate email format
-const isValidEmail = (email) => /^\S+@\S+\.\S+$/.test(email);
-
 // Register new user
-router.post("/register", async (req, res) => {
-  try {
-    const { name, email, password, role } = req.body;
+router.post(
+  "/register",
+  validateRegister(),
+  validateRequest,
+  async (req, res) => {
+    try {
+      const { name, email, password, role } = req.body;
 
-    // Input validation
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Name, email, and password are required." });
+      // Check if user already exists
+      const userExists = await User.findOne({ email });
+      if (userExists) {
+        return res.status(400).json({ error: "User already exists." });
+      }
+
+      const user = await User.create({ name, email, password, role });
+      const token = generateToken(user._id, user.role);
+
+      res.status(201).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token,
+      });
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.status(400).json({ error: "Email already in use." });
+      }
+      res.status(500).json({ error: "Server error. Please try again later." });
     }
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: "Invalid email format." });
-    }
-    if (role && !["admin", "staff"].includes(role)) {
-      return res.status(400).json({ error: "Invalid role." });
-    }
-
-    // Check if user already exists
-    const userExists = await User.findOne({ email });
-    if (userExists) return res.status(400).json({ error: "User already exists." });
-
-    const user = await User.create({ name, email, password, role });
-    const token = generateToken(user._id, user.role);
-
-    res.status(201).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token,
-    });
-  } catch (err) {
-    // Handle duplicate key error
-    if (err.code === 11000) return res.status(400).json({ error: "Email already in use." });
-    res.status(500).json({ error: "Server error. Please try again later." });
   }
-});
+);
 
 // Login
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+router.post(
+  "/login",
+  validateLogin(),
+  validateRequest,
+  async (req, res) => {
+    try {
+      const { email, password } = req.body;
 
-    // Input validation
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required." });
+      // Authentication logic
+      const user = await User.findOne({ email });
+      if (!user || !(await user.matchPassword(password))) {
+        return res.status(401).json({ error: "Invalid credentials." });
+      }
+
+      const token = generateToken(user._id, user.role);
+
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Server error. Please try again later." });
     }
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: "Invalid email format." });
-    }
-
-    const user = await User.findOne({ email });
-    if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ error: "Invalid credentials." });
-    }
-
-    const token = generateToken(user._id, user.role);
-
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token,
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Server error. Please try again later." });
   }
-});
+);
 
 // Get logged-in user info
 router.get("/me", async (req, res) => {
@@ -93,7 +87,6 @@ router.get("/me", async (req, res) => {
 
     res.json(user);
   } catch (err) {
-    // Handle token errors separately if needed
     res.status(401).json({ error: "Invalid or expired token." });
   }
 });

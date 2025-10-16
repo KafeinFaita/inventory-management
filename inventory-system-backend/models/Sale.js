@@ -1,4 +1,6 @@
+// models/Sale.js
 import mongoose from "mongoose";
+import safeDeletePlugin from "../plugins/safeDelete.js";
 
 const saleItemSchema = new mongoose.Schema({
   product: {
@@ -38,21 +40,13 @@ const saleSchema = new mongoose.Schema(
       default: 0,
     },
 
-    // 🧾 Invoice-related fields (non-breaking additions)
+    // 🧾 Invoice-related fields
     invoiceNumber: {
-      type: String,
-      unique: true,
-      sparse: true, // prevents index errors if not all sales have invoices
+      type: String
     },
-    customerName: {
-      type: String,
-    },
-    customerEmail: {
-      type: String,
-    },
-    customerPhone: {
-      type: String,
-    },
+    customerName: { type: String },
+    customerEmail: { type: String },
+    customerPhone: { type: String },
 
     date: {
       type: Date,
@@ -62,7 +56,7 @@ const saleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Automatically calculate total amount before saving
+// ✅ Auto-calc total before save
 saleSchema.pre("save", function (next) {
   this.totalAmount = this.items.reduce(
     (sum, item) => sum + item.priceAtSale * item.quantity,
@@ -71,7 +65,7 @@ saleSchema.pre("save", function (next) {
   next();
 });
 
-// Auto-generate invoice number if not set
+// ✅ Auto-generate invoice number if not set
 saleSchema.pre("save", function (next) {
   if (!this.invoiceNumber) {
     const timestamp = Date.now().toString().slice(-6);
@@ -80,7 +74,15 @@ saleSchema.pre("save", function (next) {
   next();
 });
 
+// ✅ Apply safe delete plugin
+saleSchema.plugin(safeDeletePlugin);
+
+// ✅ Useful indexes
+saleSchema.index({ user: 1, active: 1 }); // fast lookups by user
+saleSchema.index({ invoiceNumber: 1 }, { unique: true, sparse: true });
+saleSchema.index({ date: -1 }); // efficient sorting by most recent sales
+saleSchema.index({ active: 1 }); // quick filtering for active sales
+
 const Sale = mongoose.model("Sale", saleSchema);
 
 export default Sale;
-

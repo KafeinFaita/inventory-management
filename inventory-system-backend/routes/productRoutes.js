@@ -1,6 +1,8 @@
+// routes/productRoutes.js
 import express from "express";
 import Product from "../models/Product.js";
 import { protect, adminOnly } from "../middleware/authMiddleware.js";
+import { validateProduct, validateRequest } from "../middleware/validator.js";
 
 const router = express.Router();
 
@@ -17,113 +19,137 @@ const buildVariantName = (variant) => {
   return "Variant";
 };
 
-// Get all products (admin + staff can view)
+/* =========================================================
+   GET ALL PRODUCTS (admin + staff)
+   Only return active products
+========================================================= */
 router.get("/", protect, async (req, res) => {
   try {
-    const products = await Product.find();
+    const products = await Product.find({ active: true });
     res.json(products);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Create product (admin only)
-router.post("/", protect, adminOnly, async (req, res) => {
-  try {
-    const {
-      name,
-      brand,
-      category,
-      stock,
-      price,
-      hasVariants = false,
-      variants = [],
-    } = req.body;
+/* =========================================================
+   CREATE PRODUCT (admin only)
+========================================================= */
+router.post(
+  "/",
+  protect,
+  adminOnly,
+  validateProduct,
+  validateRequest,
+  async (req, res, next) => {
+    try {
+      const {
+        name,
+        brand,
+        category,
+        stock,
+        price,
+        hasVariants = false,
+        variants = [],
+      } = req.body;
 
-    // ✅ Validate variants only if hasVariants = true
-    if (hasVariants && (!Array.isArray(variants) || variants.length === 0)) {
-      return res
-        .status(400)
-        .json({ error: "Variants must be provided when hasVariants is true." });
+      if (hasVariants && (!Array.isArray(variants) || variants.length === 0)) {
+        res.status(400);
+        return next(new Error("Variants must be provided when hasVariants is true."));
+      }
+
+      const normalizedVariants = hasVariants
+        ? variants.map((v) => ({
+            ...v,
+            name: buildVariantName(v),
+          }))
+        : [];
+
+      const product = new Product({
+        name,
+        brand,
+        category,
+        stock: hasVariants ? 0 : stock,
+        price: hasVariants ? 0 : price,
+        hasVariants,
+        variants: normalizedVariants,
+      });
+
+      await product.save();
+      res.status(201).json(product);
+    } catch (err) {
+      next(err);
     }
-
-    // Normalize variants: ensure each has a consistent name
-    const normalizedVariants = hasVariants
-      ? variants.map((v) => ({
-          ...v,
-          name: buildVariantName(v),
-        }))
-      : [];
-
-    const product = new Product({
-      name,
-      brand,
-      category,
-      stock: hasVariants ? 0 : stock, // stock handled by variants if enabled
-      price: hasVariants ? 0 : price, // price handled by variants if enabled
-      hasVariants,
-      variants: normalizedVariants,
-    });
-
-    await product.save();
-    res.status(201).json(product);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
   }
-});
+);
+/* =========================================================
+   UPDATE PRODUCT (admin only)
+   Prevent updates to inactive products
+========================================================= */
+router.put(
+  "/:id",
+  protect,
+  adminOnly,
+  validateProduct,
+  validateRequest,
+  async (req, res, next) => {
+    try {
+      const {
+        name,
+        brand,
+        category,
+        stock,
+        price,
+        hasVariants = false,
+        variants = [],
+      } = req.body;
 
-// Update product (admin only)
-router.put("/:id", protect, adminOnly, async (req, res) => {
-  try {
-    const {
-      name,
-      brand,
-      category,
-      stock,
-      price,
-      hasVariants = false,
-      variants = [],
-    } = req.body;
+      if (hasVariants && (!Array.isArray(variants) || variants.length === 0)) {
+        res.status(400);
+        return next(new Error("Variants must be provided when hasVariants is true."));
+      }
 
-    // Validate variants if needed
-    if (hasVariants && (!Array.isArray(variants) || variants.length === 0)) {
-      return res
-        .status(400)
-        .json({ error: "Variants must be provided when hasVariants is true." });
+      const normalizedVariants = hasVariants
+        ? variants.map((v) => ({
+            ...v,
+            name: buildVariantName(v),
+          }))
+        : [];
+
+      const product = await Product.findById(req.params.id);
+      if (!product || !product.active) {
+        res.status(404);
+        return next(new Error("Product not found or inactive"));
+      }
+
+      product.name = name;
+      product.brand = brand;
+      product.category = category;
+      product.stock = hasVariants ? 0 : stock;
+      product.price = hasVariants ? 0 : price;
+      product.hasVariants = hasVariants;
+      product.variants = normalizedVariants;
+
+      await product.save();
+      res.json(product);
+    } catch (err) {
+      next(err);
     }
-
-    // Normalize variants: ensure each has a consistent name
-    const normalizedVariants = hasVariants
-      ? variants.map((v) => ({
-          ...v,
-          name: buildVariantName(v),
-        }))
-      : [];
-
-    const updatedData = {
-      name,
-      brand,
-      category,
-      stock: hasVariants ? 0 : stock,
-      price: hasVariants ? 0 : price,
-      hasVariants,
-      variants: normalizedVariants,
-    };
-
-    const product = await Product.findByIdAndUpdate(req.params.id, updatedData, { new: true });
-    if (!product) return res.status(404).json({ error: "Product not found" });
-    res.json(product);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
   }
-});
+);
 
-// Delete product (admin only)
+/* =========================================================
+   DELETE PRODUCT (admin only)
+   Soft delete instead of hard remove
+========================================================= */
 router.delete("/:id", protect, adminOnly, async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });
-    res.json({ message: "Product deleted successfully" });
+
+    await product.safeDelete();
+
+    res.json({ message: "Product deactivated (soft deleted) successfully" });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
