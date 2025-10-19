@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo
+    container_name: inventory_management-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - backend-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inventory_management-app
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/inventorydb
+    volumes:
+      - ./inventory-system-backend/.env:/app/inventory-system-backend/.env
+    networks:
+      - backend-net
+
+volumes:
+  mongo-data:
+
+networks:
+  backend-net:
+    driver: bridge

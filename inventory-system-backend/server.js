@@ -13,11 +13,10 @@ import salesRoutes from "./routes/salesRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import usersRoutes from "./routes/usersRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
+import supplierRoutes from "./routes/supplierRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 import Product from "./models/Product.js";
-
-
 
 dotenv.config();
 
@@ -27,6 +26,10 @@ app.use(express.json());
 
 import fs from "fs";
 
+// ✅ Resolve __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.get("/debug/uploads", (req, res) => {
   const testPath = path.join(__dirname, "uploads", "logos");
   res.json({
@@ -35,12 +38,6 @@ app.get("/debug/uploads", (req, res) => {
     resolvedPath: testPath,
   });
 });
-
-
-
-// ✅ Resolve __dirname for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // ✅ Serve uploaded files (e.g., logos) reliably
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -54,6 +51,16 @@ app.use("/api/sales", salesRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/suppliers", supplierRoutes);
+
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "frontend/dist")));
+
+  app.use((req, res) => {
+    res.sendFile(path.join(__dirname, "frontend/dist/index.html"));
+  });
+}
 
 // ✅ Plug in error middleware AFTER routes
 app.use(notFound);
@@ -85,6 +92,6 @@ app.get("/", (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
