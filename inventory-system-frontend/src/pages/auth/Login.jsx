@@ -52,15 +52,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="card w-full max-w-md shadow-xl bg-white p-8">
-        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+    <div className="min-h-screen flex items-center justify-center bg-base-200">
+      <div className="card w-full max-w-md shadow-xl bg-base-100 p-8">
+        <h2 className="text-3xl font-bold mb-6 text-center text-primary">
+          Login
+        </h2>
 
         {error && (
           <div className="alert alert-error mb-4 flex justify-between items-center">
             <span>{error}</span>
-            <button className="btn btn-sm btn-primary" onClick={() => setError("")}>
-              X
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => setError("")}
+            >
+              ✕
             </button>
           </div>
         )}
@@ -99,13 +104,19 @@ export default function Login() {
               className="absolute right-3 top-9 text-gray-500"
               onClick={() => setShowPassword(!showPassword)}
             >
-              {showPassword ? <AiFillEyeInvisible size={20} /> : <AiFillEye size={20} />}
+              {showPassword ? (
+                <AiFillEyeInvisible size={20} />
+              ) : (
+                <AiFillEye size={20} />
+              )}
             </button>
           </div>
 
           <button
             type="submit"
-            className={`btn btn-primary w-full mt-4 ${loading ? "loading" : ""}`}
+            className={`btn btn-primary w-full mt-4 ${
+              loading ? "loading" : ""
+            }`}
             disabled={loading}
           >
             {loading ? "Logging in..." : "Login"}

@@ -1,27 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
-
-const token = localStorage.getItem("token");
-const api = axios.create({
-  baseURL: `${API_URL}/api`,
-  headers: { Authorization: `Bearer ${token}` },
-});
 
 export default function Inventory() {
   const [products, setProducts] = useState([]);
   const [brands, setBrands] = useState([]);
   const [categories, setCategories] = useState([]);
 
-  // Product form state
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [category, setCategory] = useState("");
   const [hasVariants, setHasVariants] = useState(false);
   const [variantCategories, setVariantCategories] = useState([]);
   const [variantCombinations, setVariantCombinations] = useState([]);
+  const [generatedCombinations, setGeneratedCombinations] = useState([]);
 
-  // For non-variant products
   const [nonVariantStock, setNonVariantStock] = useState(0);
   const [nonVariantPrice, setNonVariantPrice] = useState(0);
 
@@ -30,6 +23,8 @@ export default function Inventory() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
+  const messageRef = useRef(null);
+
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -37,52 +32,87 @@ export default function Inventory() {
   const fetchAllData = async () => {
     setLoading(true);
     setMessage(null);
+
+    const token = localStorage.getItem("token");
+    const api = axios.create({
+      baseURL: `${API_URL}/api`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
     try {
-      await Promise.allSettled([fetchProducts(), fetchBrands(), fetchCategories()]);
+      await Promise.allSettled([
+        fetchProducts(api),
+        fetchBrands(api),
+        fetchCategories(api)
+      ]);
     } catch (err) {
       console.error(err);
       setMessage({ type: "error", text: "Failed to load inventory data." });
+      setTimeout(() => {
+        if (messageRef.current) {
+          messageRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (api) => {
     try {
       const res = await api.get("/products");
       setProducts(res.data);
     } catch (err) {
       console.error(err);
       setMessage({ type: "error", text: "Failed to fetch products." });
+      setTimeout(() => {
+        if (messageRef.current) {
+          messageRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     }
   };
 
-  const fetchBrands = async () => {
+  const fetchBrands = async (api) => {
     try {
       const res = await api.get("/brands");
       setBrands(res.data);
     } catch (err) {
       console.error(err);
       setMessage({ type: "error", text: "Failed to fetch brands." });
+      setTimeout(() => {
+        if (messageRef.current) {
+          messageRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     }
   };
 
-  const fetchCategories = async () => {
+  const fetchCategories = async (api) => {
     try {
       const res = await api.get("/categories");
       setCategories(res.data);
     } catch (err) {
       console.error(err);
       setMessage({ type: "error", text: "Failed to fetch categories." });
+      setTimeout(() => {
+        if (messageRef.current) {
+          messageRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     }
   };
 
   const showSuccess = (text) => {
     setMessage({ type: "success", text });
     setTimeout(() => setMessage(null), 3000);
+    setTimeout(() => {
+      if (messageRef.current) {
+        messageRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 100);
   };
 
-  // ---------- Variant Handlers ----------
   const addVariantCategory = () =>
     setVariantCategories([...variantCategories, { category: "", options: [""] }]);
   const removeVariantCategory = (index) => {
@@ -116,9 +146,9 @@ export default function Inventory() {
     generateCombinations(newCategories);
   };
 
-  // ---------- Generate all combinations ----------
   const generateCombinations = (categoriesArray) => {
     if (!categoriesArray.length || categoriesArray.some((c) => !c.category || c.options.length === 0)) {
+      setGeneratedCombinations([]);
       setVariantCombinations([]);
       return;
     }
@@ -135,7 +165,8 @@ export default function Inventory() {
       return { attributes, stock: existing?.stock || 0, price: existing?.price || 0 };
     });
 
-    setVariantCombinations(formatted);
+    setGeneratedCombinations(formatted);
+    setVariantCombinations([]);
   };
 
   const cartesianProduct = (arrays) => {
@@ -149,15 +180,25 @@ export default function Inventory() {
     setVariantCombinations(newCombinations);
   };
 
-  // ---------- Submit ----------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setMessage(null);
 
+    const token = localStorage.getItem("token");
+    const api = axios.create({
+      baseURL: `${API_URL}/api`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
     if (!name.trim() || !brand || !category) {
       setMessage({ type: "error", text: "Please fill in all required fields." });
       setSubmitting(false);
+      setTimeout(() => {
+        if (messageRef.current) {
+          messageRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
       return;
     }
 
@@ -167,8 +208,8 @@ export default function Inventory() {
       category,
       hasVariants,
       ...(hasVariants
-        ? { variants: variantCombinations }   // ✅ only variants
-        : { stock: nonVariantStock, price: nonVariantPrice }) // ✅ only parent stock/price
+        ? { variants: variantCombinations }
+        : { stock: nonVariantStock, price: nonVariantPrice })
     };
 
     try {
@@ -181,7 +222,6 @@ export default function Inventory() {
         showSuccess("Product added successfully!");
       }
 
-      // Reset form
       setName("");
       setBrand("");
       setCategory("");
@@ -191,11 +231,16 @@ export default function Inventory() {
       setNonVariantStock(0);
       setNonVariantPrice(0);
 
-      fetchProducts();
+      fetchProducts(api);
     } catch (err) {
       console.error(err);
       const backendMsg = err.response?.data?.error || "Failed to save product. Please try again.";
       setMessage({ type: "error", text: backendMsg });
+      setTimeout(() => {
+        if (messageRef.current) {
+          messageRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     } finally {
       setSubmitting(false);
     }
@@ -235,13 +280,24 @@ export default function Inventory() {
     setSubmitting(true);
     setMessage(null);
     try {
+      const token = localStorage.getItem("token");
+      const api = axios.create({
+        baseURL: `${API_URL}/api`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       await api.delete(`/products/${id}`);
-      fetchProducts();
+      fetchProducts(api);
       showSuccess("Product deleted successfully!");
     } catch (err) {
       console.error(err);
       const backendMsg = err.response?.data?.error || "Failed to delete product.";
       setMessage({ type: "error", text: backendMsg });
+      setTimeout(() => {
+        if (messageRef.current) {
+          messageRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     } finally {
       setSubmitting(false);
     }
@@ -264,15 +320,20 @@ export default function Inventory() {
     <div className="space-y-8">
       <h1 className="text-3xl font-bold">Inventory</h1>
 
-      {message && message.type === "error" && (
-        <div className="alert alert-error shadow-lg flex justify-between items-center mb-4">
-          <span>{message.text}</span>
-          <button className="btn btn-sm btn-primary" onClick={() => { setMessage(null); fetchAllData(); }}>Retry</button>
+      {message && (
+        <div ref={messageRef}>
+          {message.type === "error" && (
+            <div className="alert alert-error shadow-lg flex justify-between items-center mb-4">
+              <span>{message.text}</span>
+              <button className="btn btn-sm btn-primary" onClick={() => { setMessage(null); fetchAllData(); }}>Retry</button>
+            </div>
+          )}
+          {message.type === "success" && (
+            <div className="alert alert-success shadow-lg mb-4 transition-opacity duration-500">{message.text}</div>
+          )}
         </div>
       )}
-      {message && message.type === "success" && (
-        <div className="alert alert-success shadow-lg mb-4 transition-opacity duration-500">{message.text}</div>
-      )}
+
 
       {/* Add/Edit Form */}
       <form className="space-y-4 bg-base-200 p-6 rounded-lg shadow" onSubmit={handleSubmit}>
@@ -347,6 +408,52 @@ export default function Inventory() {
           </div>
         ))}
         {hasVariants && <button type="button" className="btn btn-sm btn-secondary" onClick={addVariantCategory}>Add Variant Category</button>}
+
+
+        {hasVariants && generatedCombinations.length > 0 && (
+          <div className="bg-base-200 p-3 rounded mt-4">
+            <h3 className="font-semibold mb-2">Select Variant Combinations</h3>
+            <table className="table w-full">
+              <thead>
+                <tr>
+                  {variantCategories.map((vc, i) => <th key={i}>{vc.category}</th>)}
+                  <th>Select</th>
+                </tr>
+              </thead>
+              <tbody>
+                {generatedCombinations.map((combo, i) => {
+                  const isSelected = variantCombinations.some(
+                    (v) => JSON.stringify(v.attributes) === JSON.stringify(combo.attributes)
+                  );
+                  return (
+                    <tr key={i}>
+                      {variantCategories.map((vc, j) => (
+                        <td key={j}>{combo.attributes[vc.category]}</td>
+                      ))}
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setVariantCombinations([...variantCombinations, { ...combo }]);
+                            } else {
+                              setVariantCombinations(
+                                variantCombinations.filter(
+                                  (v) => JSON.stringify(v.attributes) !== JSON.stringify(combo.attributes)
+                                )
+                              );
+                            }
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Variant Combinations */}
         {hasVariants && variantCombinations.length > 0 && (

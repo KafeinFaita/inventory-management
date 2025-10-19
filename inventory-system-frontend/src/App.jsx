@@ -12,6 +12,7 @@ import Users from "./pages/users/Users";
 import AddUser from "./pages/users/AddUser";
 import EditUser from "./pages/users/EditUser";
 import AccountSettings from "./pages/AccountSettings";
+import Supplier from "./pages/Supplier";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const router = createBrowserRouter([
@@ -66,6 +67,9 @@ const router = createBrowserRouter([
               { path: "edit/:id", element: <EditUser /> },
             ],
           },
+          // Supplier route
+          { path: "suppliers", element: <Supplier /> },
+
           // Settings route
           { path: "settings", element: <Settings /> },
         ],

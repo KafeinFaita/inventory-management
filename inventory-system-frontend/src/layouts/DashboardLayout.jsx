@@ -12,6 +12,7 @@ import {
   FaSignOutAlt,
   FaMoon,
   FaSun,
+  FaTruck
 } from "react-icons/fa";
 import axios from "axios";
 import { API_URL } from "../config";
@@ -212,6 +213,18 @@ export default function DashboardLayout() {
                 onClick={() => setSidebarOpen(false)}
               >
                 <FaUser /> <span>Users</span>
+              </Link>
+            </li>
+          )}
+
+          {role === "admin" && (
+            <li>
+              <Link
+                to="/suppliers"
+                className={linkClass("/suppliers")}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <FaTruck /> <span>Suppliers</span>
               </Link>
             </li>
           )}
