@@ -242,8 +242,7 @@ export default function Supplier() {
                   <td>{s.address}</td>
                   <td>{s.notes}</td>
                   <td className="space-x-2">
-                    <button className="btn btn-sm btn-info" onClick={() => handleEdit(s)}></button>
-                                        <button className="btn btn-sm btn-info" onClick={() => handleEdit(s)}>Edit</button>
+                    <button className="btn btn-sm btn-info" onClick={() => handleEdit(s)}>Edit</button>
                     <button className="btn btn-sm btn-error" onClick={() => handleDelete(s._id)}>Delete</button>
                   </td>
                 </tr>

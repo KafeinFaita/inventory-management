@@ -13,6 +13,7 @@ import AddUser from "./pages/users/AddUser";
 import EditUser from "./pages/users/EditUser";
 import AccountSettings from "./pages/AccountSettings";
 import Supplier from "./pages/Supplier";
+import PurchaseOrder from "./pages/PurchaseOrder";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const router = createBrowserRouter([
@@ -69,6 +70,10 @@ const router = createBrowserRouter([
           },
           // Supplier route
           { path: "suppliers", element: <Supplier /> },
+
+          // Purchase Order route 
+          { path: "purchase-order", element: <PurchaseOrder /> },
+
 
           // Settings route
           { path: "settings", element: <Settings /> },

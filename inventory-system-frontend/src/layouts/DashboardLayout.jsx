@@ -229,6 +229,18 @@ export default function DashboardLayout() {
             </li>
           )}
 
+          {role === "admin" && (
+            <li>
+              <Link
+                to="/purchase-order"
+                className={linkClass("/purchase-order")}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <FaBoxes /> <span>Purchase Order</span>
+              </Link>
+            </li>
+          )}
+
           {/* Settings (admin only) */}
           {role === "admin" && (
             <li>
