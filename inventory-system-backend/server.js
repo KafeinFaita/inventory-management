@@ -14,6 +14,7 @@ import authRoutes from "./routes/authRoutes.js";
 import usersRoutes from "./routes/usersRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import supplierRoutes from "./routes/supplierRoutes.js";
+import poRoutes from "./routes/poRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 import Product from "./models/Product.js";
@@ -52,6 +53,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/purchase-orders", poRoutes);
 
 
 if (process.env.NODE_ENV === "production") {
