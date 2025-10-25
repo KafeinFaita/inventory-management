@@ -12,7 +12,8 @@ router.get("/", protect, async (req, res) => {
   try {
     const pos = await PurchaseOrder.find({ active: true })
       .populate("supplier")
-      .populate("items.product"); // variant is string now
+      .populate("items.product")
+      .populate("statusHistory.changedBy");
     res.json(pos);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -110,7 +111,15 @@ router.put("/:id/status", protect, adminOnly, async (req, res) => {
       });
     }
 
-    // If moving to received, update stock
+    // ✅ Log the transition
+    po.statusHistory.push({
+      from: po.status,
+      to: status,
+      changedBy: req.user._id,
+      changedAt: new Date()
+    });
+
+    // ✅ Update stock if received
     if (status === "received") {
       for (const item of po.items) {
         const product = await Product.findById(item.product._id);
@@ -125,6 +134,7 @@ router.put("/:id/status", protect, adminOnly, async (req, res) => {
         await product.save();
       }
       po.receivedDate = new Date();
+      po.receivedBy = req.user._id;
     }
 
     po.status = status;
@@ -135,7 +145,6 @@ router.put("/:id/status", protect, adminOnly, async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 /* =========================================================
    DELETE PURCHASE ORDER (admin only)
    Soft delete instead of hard remove

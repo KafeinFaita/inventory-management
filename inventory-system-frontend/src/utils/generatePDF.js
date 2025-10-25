@@ -1,32 +1,25 @@
-// src/utils/generatePDF.js
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import axios from "axios";
 import { API_URL } from "../config";
 
-/**
- * Generate invoice PDF and open in a new tab.
- * Respects PDF settings (page size, orientation, footer) and renders business details.
- * Logo is optional: if missing or cannot be loaded, it is simply skipped.
- */
-export const generatePDF = async (sale) => {
+export const generatePDF = async ({ type = "invoice", data }) => {
   try {
-    if (!sale) throw new Error("No sale data provided.");
+    if (!data) throw new Error("No data provided.");
 
-    // Fetch settings (business + pdfSettings)
+    // Fetch settings
     let settings = {};
     try {
       const token = localStorage.getItem("token");
-      const { data } = await axios.get(`${API_URL}/api/settings`, {
+      const { data: res } = await axios.get(`${API_URL}/api/settings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      settings = data || {};
+      settings = res || {};
     } catch (err) {
       console.warn("Failed to fetch settings:", err?.message || err);
-      settings = {};
     }
 
-    // Create doc with settings
+    // Create doc
     const doc = new jsPDF({
       orientation: settings?.pdfSettings?.orientation || "portrait",
       unit: "mm",
@@ -35,88 +28,106 @@ export const generatePDF = async (sale) => {
 
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Prepare invoice metadata
-    const invoiceId =
-      sale.invoiceNumber ||
-      sale._id ||
-      `TEMP-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
-    const saleDate = new Date(sale.date || sale.createdAt || Date.now()).toLocaleString();
-    const itemsArr = Array.isArray(sale.items) ? sale.items : [];
+    // Normalize data
+    let normalized = {};
+    if (type === "invoice") {
+      normalized = {
+        title: "INVOICE",
+        id: data.invoiceNumber || data._id,
+        date: data.date || data.createdAt,
+        user: data.user?.name,
+        customer: {
+          name: data.customerName,
+          email: data.customerEmail,
+          phone: data.customerPhone,
+        },
+        items: data.items.map((item) => ({
+          name: item.product?.name || "Unknown Product",
+          variant: item.variants?.map(v => v.option).join(", "),
+          qty: item.quantity,
+          unit: item.priceAtSale ?? item.product?.price ?? 0,
+        })),
+        total: data.totalAmount,
+      };
+    } else if (type === "po") {
+      normalized = {
+        title: "PURCHASE ORDER",
+        id: data.poNumber || data._id,
+        date: data.createdAt,
+        user: data.createdBy?.name,
+        customer: {
+          name: data.supplier?.name,
+          email: data.supplier?.email,
+          phone: data.supplier?.phone,
+        },
+        items: data.items.map((item) => ({
+          name: item.product?.name || item.productName || "Unknown",
+          variant: item.variant || "—",
+          qty: item.quantity,
+          unit: item.unitCost,
+        })),
+        total: data.totalAmount,
+        notes: data.notes,
+        status: data.status,
+      };
+    } else {
+      throw new Error(`Unsupported PDF type: ${type}`);
+    }
 
     // ===== HEADER =====
-    // Try to render logo if available; skip silently if not present or cannot be loaded
     if (settings?.businessLogoUrl) {
       try {
         const logoImg = await loadImage(settings.businessLogoUrl);
-        // Draw logo on the left; adjust header Y positions accordingly
-        doc.addImage(logoImg, "PNG", 14, 10, 30, 30); // x, y, width, height
+        doc.addImage(logoImg, "PNG", 14, 10, 30, 30);
       } catch (err) {
         console.warn("Logo not found or failed to load. Skipping logo.");
       }
     }
 
-    // Business name (centered)
     doc.setFontSize(18);
     doc.text(settings?.businessName || "My Business", pageWidth / 2, 20, { align: "center" });
 
-    // Business address (centered, optional)
     if (settings?.businessAddress) {
       doc.setFontSize(11);
       doc.text(settings.businessAddress, pageWidth / 2, 28, { align: "center" });
     }
 
-    // Sub-header: Invoice label and metadata
     doc.setFontSize(16);
-    doc.text("INVOICE", pageWidth / 2, 45, { align: "center" });
+    doc.text(normalized.title, pageWidth / 2, 45, { align: "center" });
 
     doc.setFontSize(12);
-    doc.text(`Invoice: ${invoiceId}`, 14, 55);
-    doc.text(`Date: ${saleDate}`, 14, 62);
-    if (sale.user?.name) {
-      doc.text(`Sold by: ${sale.user.name}`, pageWidth - 14, 55, { align: "right" });
+    doc.text(`${normalized.title} #: ${normalized.id}`, 14, 55);
+    doc.text(`Date: ${new Date(normalized.date).toLocaleString()}`, 14, 62);
+    if (normalized.user) {
+      doc.text(`Handled by: ${normalized.user}`, pageWidth - 14, 55, { align: "right" });
     }
 
     // ===== CUSTOMER INFO =====
     let y = 70;
-    if (sale.customerName || sale.customerEmail || sale.customerPhone) {
-      if (sale.customerName) {
-        doc.text(`Customer: ${sale.customerName}`, 14, y);
-        y += 6;
+    const c = normalized.customer;
+    if (c?.name || c?.email || c?.phone) {
+      if (c.name) {
+        doc.text(`Supplier: ${c.name}`, 14, y); y += 6;
       }
-      if (sale.customerEmail) {
-        doc.text(`Email: ${sale.customerEmail}`, 14, y);
-        y += 6;
+      if (c.email) {
+        doc.text(`Email: ${c.email}`, 14, y); y += 6;
       }
-      if (sale.customerPhone) {
-        doc.text(`Phone: ${sale.customerPhone}`, 14, y);
-        y += 6;
+      if (c.phone) {
+        doc.text(`Phone: ${c.phone}`, 14, y); y += 6;
       }
     }
 
     // ===== TABLE =====
-    const tableBody = itemsArr.map((item) => {
-      const baseName = item.product?.name || "Unknown Product";
-      const variantLabel =
-        item.variants && item.variants.length > 0
-          ? ` (${item.variants.map((v) => v.option).join(", ")})`
-          : "";
-      const displayName = `${baseName}${variantLabel}`;
-
-      const qty = item.quantity ?? 0;
-      const unit =
-        typeof item.priceAtSale === "number" ? item.priceAtSale : item.product?.price ?? 0;
-      const subtotal = unit * qty;
-
-      return [
-        displayName,
-        qty,
-        `P${unit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        `P${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-      ];
-    });
+    const tableBody = normalized.items.map((item) => [
+      item.name,
+      item.variant || "—",
+      item.qty,
+      `P${item.unit.toFixed(2)}`,
+      `P${(item.unit * item.qty).toFixed(2)}`
+    ]);
 
     autoTable(doc, {
-      head: [["Product", "Qty", "Unit Price", "Total"]],
+      head: [["Product", "Variant", "Qty", "Unit Price", "Subtotal"]],
       body: tableBody,
       startY: y + 4,
       styles: { halign: "center" },
@@ -124,38 +135,36 @@ export const generatePDF = async (sale) => {
     });
 
     // ===== TOTAL =====
-    const computedTotal =
-      typeof sale.totalAmount === "number"
-        ? sale.totalAmount
-        : itemsArr.reduce(
-            (sum, i) => sum + (i.priceAtSale ?? i.product?.price ?? 0) * (i.quantity ?? 0),
-            0
-          );
-
     const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 90;
     doc.setFontSize(14);
     doc.text(
-      `Grand Total: P${computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      `Grand Total: P${normalized.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       pageWidth - 14,
       finalY,
       { align: "right" }
     );
 
+    // ===== PO Notes and Status =====
+    if (type === "po") {
+      doc.setFontSize(11);
+      if (normalized.status) {
+        doc.text(`Status: ${normalized.status}`, 14, finalY);
+      }
+      if (normalized.notes) {
+        doc.text(`Notes: ${normalized.notes}`, 14, finalY + 6);
+      }
+    }
+
     // ===== FOOTER =====
     doc.setFontSize(10);
-    const footerText = settings?.pdfSettings?.footerText || "Thank you for your purchase!";
+    const footerText = settings?.pdfSettings?.footerText || "Thank you!";
     doc.text(footerText, pageWidth / 2, finalY + 18, { align: "center" });
 
     // ===== OUTPUT =====
-    const invoiceDateForName = new Date(sale.date || sale.createdAt || Date.now())
-      .toISOString()
-      .slice(0, 10);
-    const fileName = `Invoice_${invoiceId}_${invoiceDateForName}.pdf`;
-
+    const fileName = `${normalized.title.replace(" ", "_")}_${normalized.id}_${new Date(normalized.date).toISOString().slice(0, 10)}.pdf`;
     const pdfBlob = doc.output("blob");
     const pdfUrl = URL.createObjectURL(pdfBlob);
 
-    // Simple viewer page so tab title and download name are nice
     const escapeHtml = (str = "") =>
       String(str)
         .replace(/&/g, "&amp;")
@@ -190,7 +199,6 @@ export const generatePDF = async (sale) => {
     const viewerUrl = URL.createObjectURL(viewerBlob);
     window.open(viewerUrl, "_blank");
 
-    // Cleanup object URLs later
     setTimeout(() => {
       try {
         URL.revokeObjectURL(pdfUrl);
@@ -198,12 +206,11 @@ export const generatePDF = async (sale) => {
       } catch (e) {}
     }, 15000);
   } catch (err) {
-    console.error("Error generating invoice:", err);
-    alert("Failed to generate invoice PDF. Check console for details.");
+    console.error("Error generating PDF:", err);
+    alert("Failed to generate PDF. Check console for details.");
   }
 };
 
-// Helper: fetch image as data URL, throw if not found
 async function loadImage(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Image not found at ${url}`);

@@ -7,9 +7,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: "#4f46e5",  // your main button color
-        secondary: "#6366f1", // optional
-        danger: "#dc2626",    // for error buttons/alerts
+        primary: "#4f46e5",
+        secondary: "#6366f1",
+        danger: "#dc2626",
+      },
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui'],     // default body font
+        heading: ['Poppins', 'ui-sans-serif', 'system-ui'], // headings
       },
     },
   },
@@ -29,7 +33,7 @@ export default {
           error: "#dc2626",
         },
       },
-      "dark", // you can keep the default dark theme as well
+      "dark",
     ],
     darkTheme: "dark",
   },

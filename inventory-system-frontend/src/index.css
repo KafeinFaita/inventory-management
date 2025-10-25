@@ -3,3 +3,22 @@
 @tailwind utilities;
 @import "tailwindcss";
 @plugin "daisyui";
+
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Define custom fonts */
+@theme {
+  --font-sans: Inter, ui-sans-serif, system-ui;
+  --font-heading: Poppins, ui-sans-serif, system-ui;
+}
+
+/* Apply Inter everywhere by default */
+body {
+  font-family: var(--font-sans);
+}
+
+/* Apply Poppins to all headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import safeDeletePlugin from "../plugins/safeDelete.js";
 
-// models/PurchaseOrder.js
+// 🔁 Valid lifecycle transitions
 export const validTransitions = {
   draft: ["ordered", "cancelled"],
   ordered: ["received", "cancelled"],
@@ -9,15 +9,13 @@ export const validTransitions = {
   cancelled: []
 };
 
+// 🧾 Line item schema
 const lineItemSchema = new mongoose.Schema(
   {
     product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
-    productName: { type: String }, // snapshot of product name at order time
-
-    // ✅ Variant reference by name (not ObjectId)
-    variant: { type: String }, // e.g. "Red - M"
-    variantSnapshot: { type: Object }, // optional snapshot of attributes (size, color, etc.)
-
+    productName: { type: String },
+    variant: { type: String },
+    variantSnapshot: { type: Object },
     quantity: { type: Number, required: true, min: 1 },
     unitCost: { type: Number, required: true, min: 0 },
     subtotal: { type: Number, required: true, min: 0 },
@@ -25,6 +23,18 @@ const lineItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// 📜 Status history schema
+const statusHistorySchema = new mongoose.Schema(
+  {
+    from: { type: String, required: true },
+    to: { type: String, required: true },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    changedAt: { type: Date, default: Date.now }
+  },
+  { _id: false }
+);
+
+// 📦 Purchase Order schema
 const purchaseOrderSchema = new mongoose.Schema(
   {
     poNumber: { type: String, unique: true },
@@ -42,7 +52,8 @@ const purchaseOrderSchema = new mongoose.Schema(
     totalAmount: { type: Number, required: true, min: 0 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    active: { type: Boolean, default: true }, // required for safeDelete
+    statusHistory: [statusHistorySchema],
+    active: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
@@ -62,7 +73,7 @@ purchaseOrderSchema.pre("save", async function (next) {
 // ✅ Apply soft delete plugin
 purchaseOrderSchema.plugin(safeDeletePlugin);
 
-// Useful indexes
+// 📌 Useful indexes
 purchaseOrderSchema.index({ active: 1 });
 purchaseOrderSchema.index({ poNumber: 1 });
 

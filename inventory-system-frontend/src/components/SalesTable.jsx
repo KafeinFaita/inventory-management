@@ -144,7 +144,7 @@ export default function SalesTable({ sales = [] }) {
   // ⚙️ PDF handler
   const handleViewInvoice = (sale) => {
     try {
-      generatePDF(sale);
+      generatePDF({ type: "invoice", data: sale });
     } catch (err) {
       console.error("Error generating invoice:", err);
       alert("Failed to generate invoice. Please try again.");

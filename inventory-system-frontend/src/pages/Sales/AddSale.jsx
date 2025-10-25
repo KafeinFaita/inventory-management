@@ -178,7 +178,7 @@ export default function AddSale() {
       setMessage("✅ Sale recorded successfully!");
       setItems([]);
       fetchProducts();
-      generatePDF(data);
+      generatePDF({ type: "invoice", data });
     } catch (err) {
       console.error(err);
       setMessage("❌ " + err.message);

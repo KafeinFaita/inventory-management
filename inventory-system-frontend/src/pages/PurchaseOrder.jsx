@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
+import { generatePDF } from "../utils/generatePDF";
 
 export default function PurchaseOrder() {
   const [orders, setOrders] = useState([]);
@@ -351,6 +352,31 @@ export default function PurchaseOrder() {
                 ))}
               </tbody>
             </table>
+
+            {selectedPO.statusHistory?.length > 0 && (
+            <div className="mt-6">
+              <h3 className="font-semibold mb-2">Status History</h3>
+              <ul className="text-sm space-y-1">
+                {selectedPO.statusHistory.map((h, idx) => (
+                  <li key={idx}>
+                    <span className="font-medium">{h.from}</span> →{" "}
+                    <span className="font-medium">{h.to}</span> by{" "}
+                    <span className="text-blue-600">{h.changedBy?.name || "Unknown"}</span> on{" "}
+                    {new Date(h.changedAt).toLocaleString()}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {selectedPO.status !== "draft" && (
+            <button
+              className="btn btn-outline btn-primary mt-4"
+              onClick={() => generatePDF({ type: "po", data: selectedPO })}
+            >
+              Download PO PDF
+            </button>
+          )}
 
             {/* 🔧 Lifecycle Action Buttons */}
             <div className="flex gap-2 mt-4">

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -15,6 +16,7 @@ import {
   FaLayerGroup,
   FaDollarSign,
   FaShoppingCart,
+  FaExclamationTriangle,
 } from "react-icons/fa";
 import { API_URL } from "../config";
 import { generatePDF } from "../utils/generatePDF";
@@ -28,7 +30,7 @@ export default function Dashboard() {
     monthlySales: [],
     latestSales: [],
     topProducts: [],
-    staffStats: [], // 👈 added
+    staffStats: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,13 +54,12 @@ export default function Dashboard() {
         }
 
         const data = await res.json();
-
         setStats({
           ...data,
           lowStockProducts: data.lowStockProducts || [],
           latestSales: data.latestSales || [],
           topProducts: data.topProducts || [],
-          staffStats: data.staffStats || [], // 👈 added
+          staffStats: data.staffStats || [],
         });
       } catch (err) {
         console.error(err);
@@ -71,11 +72,7 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
-  const chartData = (() => {
-    const sales = stats.monthlySales || [];
-    return sales.slice(-monthsToShow);
-  })();
-
+  const chartData = (stats.monthlySales || []).slice(-monthsToShow);
   const totalRevenue = (stats.monthlySales || []).reduce(
     (sum, m) => sum + (m.totalRevenue || 0),
     0
@@ -110,85 +107,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-4 md:p-6 w-full min-w-0 space-y-6">
-      <h1 className="text-3xl md:text-4xl font-bold">Dashboard</h1>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 min-w-0">
-        {[
-          {
-            icon: FaBoxes,
-            label: "Total Products",
-            value: stats.totalProducts,
-            color: "text-primary",
-          },
-          {
-            icon: FaTags,
-            label: "Total Brands",
-            value: stats.totalBrands,
-            color: "text-secondary",
-          },
-          {
-            icon: FaLayerGroup,
-            label: "Total Categories",
-            value: stats.totalCategories,
-            color: "text-accent",
-          },
-          {
-            icon: FaShoppingCart,
-            label: "Total Items Sold",
-            value: totalItemsSold,
-            color: "text-yellow-500",
-          },
-          {
-            icon: FaDollarSign,
-            label: "Total Revenue",
-            value: `₱${totalRevenue.toLocaleString()}`,
-            color: "text-green-600",
-          },
-        ].map((card, idx) => (
-          <div
-            key={idx}
-            className="card bg-base-200 shadow-md p-4 flex flex-col items-center justify-center text-center w-full min-w-0"
-          >
-            <card.icon className={`text-3xl ${card.color} mb-2`} />
-            <div>
-              <p className="text-sm md:text-base font-semibold">{card.label}</p>
-              <p className="text-xl md:text-2xl font-bold">{card.value}</p>
-            </div>
-          </div>
-        ))}
-
-        {/* Low Stock Alerts */}
-        <div className="card bg-base-100 shadow">
-  <div className="card-body">
-    <h2 className="card-title text-error">Low Stock Alerts</h2>
-    {stats.lowStockProducts.length === 0 ? (
-      <p className="text-base-content">No low stock items 🎉</p>
-    ) : (
-      <ul className="mt-2 space-y-1 text-error">
-        {stats.lowStockProducts.map((p) => (
-          <li
-            key={`${p._id}-${p.variant || "base"}`}
-            className="flex justify-between"
-          >
-            <span>
-              {p.name}
-              {p.variant ? ` (${p.variant})` : ""}
-            </span>
-            <span className="font-bold">{p.stock}</span>
-          </li>
-        ))}
-      </ul>
-    )}
-  </div>
-</div>
-      </div>
-
-      {/* Monthly Sales Chart */}
-      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-semibold">Monthly Sales</h2>
+    <div className="p-6 space-y-8 w-full min-w-0">
+      {/* Top Bar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h1>
+        <div className="flex items-center gap-3">
           <select
             value={monthsToShow}
             onChange={(e) => setMonthsToShow(Number(e.target.value))}
@@ -198,12 +121,41 @@ export default function Dashboard() {
             <option value={6}>Last 6 months</option>
             <option value={12}>Last 12 months</option>
           </select>
+          <button className="btn btn-sm btn-outline">Export PDF</button>
         </div>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={chartData || []}
-            margin={{ top: 20, right: 20, bottom: 20, left: 0 }}
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        {[
+          { icon: FaBoxes, label: "Products", value: stats.totalProducts, color: "from-blue-500 to-blue-600" },
+          { icon: FaTags, label: "Brands", value: stats.totalBrands, color: "from-purple-500 to-purple-600" },
+          { icon: FaLayerGroup, label: "Categories", value: stats.totalCategories, color: "from-pink-500 to-pink-600" },
+          { icon: FaShoppingCart, label: "Items Sold", value: totalItemsSold, color: "from-yellow-400 to-yellow-500" },
+          { icon: FaDollarSign, label: "Revenue", value: `₱${totalRevenue.toLocaleString()}`, color: "from-green-500 to-green-600" },
+        ].map((card, idx) => (
+          <div
+            key={idx}
+            className={`card shadow-md p-5 text-white bg-gradient-to-r ${card.color} rounded-xl`}
           >
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-white/20 rounded-full">
+                <card.icon className="text-2xl" />
+              </div>
+              <div>
+                <p className="text-sm opacity-80">{card.label}</p>
+                <p className="text-2xl font-bold">{card.value}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts */}
+      <div className="card bg-base-100 shadow-md p-6">
+        <h2 className="text-xl font-semibold mb-4">Sales Overview</h2>
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
             <XAxis dataKey="month" />
             <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
             <YAxis
@@ -211,145 +163,119 @@ export default function Dashboard() {
               orientation="right"
               stroke="#82ca9d"
               tickFormatter={(val) =>
-                `₱${val.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}`
+                `₱${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
               }
             />
-            <Tooltip
-              formatter={(val, name) =>
-                name === "Revenue (₱)"
-                  ? `₱${val.toLocaleString()}`
-                  : val.toLocaleString()
-              }
-            />
+            <Tooltip />
             <Legend />
-            <Bar
-              yAxisId="left"
-              dataKey="itemsSold"
-              fill="#8884d8"
-              name="Items Sold"
-            />
-            <Bar
-              yAxisId="right"
-              dataKey="totalRevenue"
-              fill="#82ca9d"
-              name="Revenue (₱)"
-            />
+            <Bar yAxisId="left" dataKey="itemsSold" fill="#3b82f6" name="Items Sold" />
+            <Line yAxisId="right" type="monotone" dataKey="totalRevenue" stroke="#22c55e" name="Revenue (₱)" />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Latest Sales Table */}
-      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">Latest Sales</h2>
-        <table className="table table-zebra table-compact w-full">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>User</th>
-              <th>Items</th>
-              <th>Total Amount</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.latestSales?.length > 0 ? (
-              stats.latestSales.map((sale) => (
-                <tr key={sale._id}>
-                  <td>
-                    {sale.date
-                      ? new Date(sale.date).toLocaleString()
-                      : "N/A"}
-                  </td>
-                  <td>{sale.user?.name || "N/A"}</td>
-                  <td className="flex flex-wrap items-start gap-1">
-                    {sale.items?.map((item, idx) => {
-                      const variantLabel =
-                        item.variants && item.variants.length > 0
-                          ? ` (${item.variants.map((v) => v.option).join(", ")})`
-                          : "";
-                      return (
-                        <span
-                          key={`${item.product?._id || idx}`}
-                          className="badge badge-sm badge-primary tooltip cursor-help border-b border-dotted whitespace-normal break-words"
-                          data-tip={`${item.product?.name || "N/A"}${variantLabel} × ${item.quantity || 0}`}
-                        >
-                          <span className="truncate max-w-[160px] inline-block align-middle">
+      {/* Latest Sales + Top Products */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Latest Sales */}
+        <div className="card bg-base-100 shadow-md p-6 overflow-x-auto">
+          <h2 className="text-xl font-semibold mb-4">Latest Sales</h2>
+          <table className="table table-compact w-full">
+            <thead className="sticky top-0 bg-base-200">
+              <tr>
+                <th>Date</th>
+                <th>User</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.latestSales?.length > 0 ? (
+                stats.latestSales.map((sale) => (
+                  <tr key={sale._id} className="hover">
+                    <td>{sale.date ? new Date(sale.date).toLocaleString() : "N/A"}</td>
+                    <td>{sale.user?.name || "N/A"}</td>
+                    <td className="flex flex-wrap gap-1">
+                      {sale.items?.map((item, idx) => {
+                        const variantLabel =
+                          item.variants?.length > 0
+                            ? ` (${item.variants.map((v) => v.option).join(", ")})`
+                            : "";
+                        return (
+                          <span
+                            key={`${item.product?._id || idx}`}
+                            className="badge badge-sm badge-primary"
+                          >
                             {item.product?.name || "N/A"}{variantLabel} × {item.quantity || 0}
                           </span>
-                        </span>
-                      );
-                    })}
-                  </td>
-                  <td className="font-semibold text-success">
-                    ₱{sale.totalAmount?.toLocaleString() || 0}
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-xs btn-outline btn-primary"
-                      onClick={() => generatePDF(sale)}
-                    >
-                      View Invoice
-                    </button>
+                        );
+                      })}
+                    </td>
+                    <td className="font-semibold text-success">
+                      ₱{sale.totalAmount?.toLocaleString() || 0}
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn-xs btn-outline btn-primary"
+                        onClick={() => generatePDF(sale)}
+                      >
+                        Invoice
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="text-center">No sales found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+                {/* Top Products */}
+        <div className="card bg-base-100 shadow-md p-6 overflow-x-auto">
+          <h2 className="text-xl font-semibold mb-4">Top Products</h2>
+          <table className="table table-compact w-full">
+            <thead className="sticky top-0 bg-base-200">
+              <tr>
+                <th>Product</th>
+                <th>Price</th>
+                <th>Total Sold</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.topProducts?.length > 0 ? (
+                stats.topProducts.map((p) => (
+                  <tr key={p._id} className="hover">
+                    <td className="font-medium">{p.name}</td>
+                    <td className="text-warning">
+                      ₱{p.price?.toLocaleString() || 0}
+                    </td>
+                    <td>
+                      <span className="badge badge-sm badge-success">
+                        {p.totalSold || 0}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="text-center">
+                    No product data
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={5} className="text-center">
-                  No sales found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Top Products Table */}
-      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">
-          Top Selling Products
-        </h2>
-        <table className="table table-zebra table-compact w-full">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Price</th>
-              <th>Total Sold</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.topProducts?.length > 0 ? (
-              stats.topProducts.map((p) => (
-                <tr key={p._id}>
-                  <td className="font-medium">{p.name}</td>
-                  <td className="text-warning">
-                    ₱{p.price?.toLocaleString() || 0}
-                  </td>
-                  <td>
-                    <span className="badge badge-sm badge-success">
-                      {p.totalSold || 0}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={3} className="text-center">
-                  No product data
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Staff Performance Table */}
-      <div className="p-4 bg-base-200 rounded-lg shadow w-full min-w-0 overflow-x-auto">
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">Staff Performance</h2>
-        <table className="table table-zebra table-compact w-full">
-          <thead>
+      {/* Staff Performance */}
+      <div className="card bg-base-100 shadow-md p-6 overflow-x-auto">
+        <h2 className="text-xl font-semibold mb-4">Staff Performance</h2>
+        <table className="table table-compact w-full">
+          <thead className="sticky top-0 bg-base-200">
             <tr>
               <th>Staff</th>
               <th>Total Sales</th>
@@ -361,7 +287,7 @@ export default function Dashboard() {
           <tbody>
             {stats.staffStats?.length > 0 ? (
               stats.staffStats.map((s) => (
-                <tr key={s.staffId}>
+                <tr key={s.staffId} className="hover">
                   <td className="font-medium">{s.staffName}</td>
                   <td>{s.totalSales}</td>
                   <td>{s.totalItemsSold}</td>
@@ -369,7 +295,9 @@ export default function Dashboard() {
                     ₱{(s.totalRevenue || 0).toLocaleString()}
                   </td>
                   <td>
-                    ₱{(s.avgSaleValue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    ₱{(s.avgSaleValue || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    })}
                   </td>
                 </tr>
               ))
@@ -382,6 +310,31 @@ export default function Dashboard() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Low Stock Alerts */}
+      <div className="card bg-base-100 shadow-md p-6">
+        <h2 className="text-xl font-semibold text-error mb-4 flex items-center gap-2">
+          <FaExclamationTriangle /> Low Stock Alerts
+        </h2>
+        {stats.lowStockProducts?.length > 0 ? (
+          <ul className="space-y-2">
+            {stats.lowStockProducts.map((p) => (
+              <li
+                key={`${p._id}-${p.variant || "base"}`}
+                className="flex justify-between border-b border-base-200 pb-1"
+              >
+                <span>
+                  {p.name}
+                  {p.variant ? ` (${p.variant})` : ""}
+                </span>
+                <span className="font-bold text-error">{p.stock}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-base-content">No low stock items 🎉</p>
+        )}
       </div>
     </div>
   );
