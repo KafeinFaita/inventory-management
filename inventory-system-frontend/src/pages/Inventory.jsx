@@ -1,8 +1,10 @@
-import React, { useEffect, useState, useRef } from "react";
+// Inventory
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
 import InventoryForm from "../components/InventoryForm";
 import InventoryTable from "../components/InventoryTable";
+import Alert from "../components/Alert";
 
 export default function Inventory() {
   // --- State ---
@@ -28,6 +30,16 @@ export default function Inventory() {
   const [showForm, setShowForm] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
 
+  // NEW: search/filter/sort/pagination state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterBrand, setFilterBrand] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [sortField, setSortField] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+
   const messageRef = useRef(null);
 
   // --- API setup ---
@@ -42,7 +54,7 @@ export default function Inventory() {
   // --- Data fetching ---
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, [page, limit, searchTerm, filterBrand, filterCategory, sortField, sortOrder]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -63,8 +75,19 @@ export default function Inventory() {
 
   const fetchProducts = async (api) => {
     try {
-      const res = await api.get("/products");
-      setProducts(res.data);
+      const res = await api.get("/products", {
+        params: {
+          page,
+          limit,
+          search: searchTerm,
+          brand: filterBrand,
+          category: filterCategory,
+          sort: sortField,
+          order: sortOrder,
+        },
+      });
+      setProducts(res.data.data);
+      setTotalPages(res.data.totalPages);
     } catch {
       setMessage({ type: "error", text: "Failed to fetch products." });
     }
@@ -242,6 +265,15 @@ export default function Inventory() {
     }
   };
 
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
   const handleEdit = (product) => {
     setName(product.name);
     setBrand(product.brand);
@@ -256,7 +288,7 @@ export default function Inventory() {
           cats[cat].add(val);
         });
       });
-      const catArray = Object.entries(cats).map(([cat, setVals]) => ({
+            const catArray = Object.entries(cats).map(([cat, setVals]) => ({
         category: cat,
         options: Array.from(setVals),
       }));
@@ -281,7 +313,7 @@ export default function Inventory() {
     setShowForm(true);
   };
 
-    const handleDelete = async (id) => {
+  const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
     setSubmitting(true);
     try {
@@ -314,24 +346,108 @@ export default function Inventory() {
         </button>
       </div>
 
-      {message && (
-        <div
-          ref={messageRef}
-          className={`alert shadow-lg transition-all duration-300 ${
-            message.type === "error" ? "alert-error" : "alert-success"
-          }`}
-        >
-          <span>{message.text}</span>
-          {message.type === "error" && (
-            <button
-              className="btn btn-sm btn-primary ml-4"
-              onClick={fetchAllData}
-            >
-              Retry
-            </button>
-          )}
+      <Alert
+        message={message}
+        onRetry={fetchAllData}
+        clearMessage={() => setMessage(null)}
+      />
+
+      {/* --- Controls Toolbar --- */}
+      <div className="card bg-base-100 shadow-sm p-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        {/* Left side: search + filters */}
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Search */}
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              🔍
+            </span>
+            <input
+              type="text"
+              placeholder="Search products..."
+              className="input input-bordered pl-9 w-64"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          {/* Brand filter */}
+          <select
+            className="select select-bordered w-40"
+            value={filterBrand}
+            onChange={(e) => {
+              setFilterBrand(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All brands</option>
+            {brands.map((b) => (
+              <option key={b._id} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Category filter */}
+          <select
+            className="select select-bordered w-40"
+            value={filterCategory}
+            onChange={(e) => {
+              setFilterCategory(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c._id} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </div>
-      )}
+
+        {/* Right side: sort + page size */}
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Sort field */}
+          <select
+            className="select select-bordered w-40"
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value)}
+          >
+            <option value="createdAt">Newest</option>
+            <option value="name">Name</option>
+            <option value="brand">Brand</option>
+            <option value="category">Category</option>
+            <option value="price">Price</option>
+            <option value="stock">Stock</option>
+          </select>
+
+          {/* Sort order */}
+          <select
+            className="select select-bordered w-28"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+
+          {/* Page size */}
+          <select
+            className="select select-bordered w-28"
+            value={limit}
+            onChange={(e) => {
+              setLimit(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            <option value={10}>10 / page</option>
+            <option value={20}>20 / page</option>
+          </select>
+        </div>
+      </div>
 
       <InventoryForm
         showForm={showForm}
@@ -365,14 +481,112 @@ export default function Inventory() {
         updateCombinationField={updateCombinationField}
       />
 
-      <InventoryTable
-        products={products}
-        loading={loading}
-        expandedRows={expandedRows}
-        toggleRow={toggleRow}
-        handleEdit={handleEdit}
-        handleDelete={handleDelete}
-      />
+      {/* --- Table with loading & empty states --- */}
+      {loading ? (
+        // Loading skeleton
+        <div className="overflow-x-auto">
+          <table className="table w-full">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Brand</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...Array(5)].map((_, i) => (
+                <tr key={i}>
+                  <td colSpan={6}>
+                    <div className="animate-pulse h-6 bg-base-200 rounded"></div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : products.length === 0 ? (
+        // Empty state
+        <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+          <span className="text-5xl mb-4">📦</span>
+          <p className="text-lg font-medium">No products found</p>
+          <p className="text-sm">Add your first product to get started.</p>
+          <button
+            className="btn btn-primary mt-4"
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+          >
+            + Add Product
+          </button>
+        </div>
+      ) : (
+        // Normal table
+        <InventoryTable
+          products={products}
+          expandedRows={expandedRows}
+          toggleRow={toggleRow}
+          handleEdit={handleEdit}
+          handleDelete={handleDelete}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={handleSort}
+        />
+      )}
+
+      {/* Pagination controls */}
+      <div className="flex justify-center items-center gap-2 mt-6">
+        {/* Prev */}
+        <button
+          className="btn btn-sm"
+          disabled={page === 1}
+          onClick={() => setPage(page - 1)}
+        >
+          Prev
+        </button>
+
+        {/* Page numbers with ellipses */}
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter(p =>
+            // Always show first, last, current, and neighbors
+            p === 1 ||
+            p === totalPages ||
+            (p >= page - 1 && p <= page + 1)
+          )
+          .map((p, idx, arr) => {
+            const prev = arr[idx - 1];
+            if (prev && p - prev > 1) {
+              return (
+                <span key={`ellipsis-${p}`} className="px-2 text-gray-500">
+                  …
+                </span>
+              );
+            }
+            return (
+              <button
+                key={p}
+                className={`btn btn-sm ${
+                  p === page ? "btn-primary" : "btn-ghost"
+                }`}
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </button>
+            );
+          })}
+
+        {/* Next */}
+        <button
+          className="btn btn-sm"
+          disabled={page === totalPages}
+          onClick={() => setPage(page + 1)}
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }

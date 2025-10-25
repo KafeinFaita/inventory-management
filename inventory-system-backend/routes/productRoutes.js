@@ -25,8 +25,46 @@ const buildVariantName = (variant) => {
 ========================================================= */
 router.get("/", protect, async (req, res) => {
   try {
-    const products = await Product.find({ active: true });
-    res.json(products);
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      brand = "",
+      category = "",
+      sort = "createdAt",
+      order = "desc",
+    } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 20);
+
+    const filter = { active: true };
+    if (search) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [{ name: regex }, { brand: regex }, { category: regex }];
+    }
+    if (brand) filter.brand = brand;
+    if (category) filter.category = category;
+
+    const sortDir = order === "asc" ? 1 : -1;
+    const sortObj = { [sort]: sortDir };
+
+    const [data, totalItems] = await Promise.all([
+      Product.find(filter)
+        .sort(sortObj)
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean(),
+      Product.countDocuments(filter),
+    ]);
+
+    res.json({
+      data,
+      totalItems,
+      totalPages: Math.ceil(totalItems / limitNum),
+      currentPage: pageNum,
+      pageSize: limitNum,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

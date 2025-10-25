@@ -213,10 +213,11 @@ export default function Dashboard() {
                   <td>
                     <button
                       className="btn btn-xs btn-outline btn-primary"
-                      onClick={() => generatePDF(sale)}
+                      onClick={() => generatePDF({ type: "invoice", data: sale })}
                     >
                       Invoice
                     </button>
+
                   </td>
                 </tr>
               ))
