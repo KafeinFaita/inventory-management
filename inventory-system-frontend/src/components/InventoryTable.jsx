@@ -44,12 +44,14 @@ export default function InventoryTable({
                     <td>
                       {p.hasVariants && (
                         <button
-                          type="button"
-                          className="btn btn-xs btn-outline"
-                          onClick={() => toggleRow(p._id)}
-                        >
-                          {expandedRows[p._id] ? "Hide Variants ▾" : "View Variants ▸"}
-                        </button>
+  type="button"
+  className="btn btn-xs btn-outline text-xs whitespace-nowrap"
+  onClick={() => toggleRow(p._id)}
+>
+  {expandedRows[p._id] ? "Hide Variants ▾" : "View Variants ▸"}
+</button>
+
+
                       )}
                     </td>
                     <td className="font-medium">{p.name}</td>

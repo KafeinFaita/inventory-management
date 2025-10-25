@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
 import {
   BarChart,
@@ -21,6 +20,16 @@ import {
 import { API_URL } from "../config";
 import { generatePDF } from "../utils/generatePDF";
 
+function KPIValue({ label, value }) {
+  return (
+    <div className="flex flex-col">
+      <p className="text-sm opacity-80">{label}</p>
+      <p className="text-lg md:text-xl font-bold whitespace-nowrap">
+        {value}
+      </p>
+    </div>
+  );
+}
 export default function Dashboard() {
   const [stats, setStats] = useState({
     totalProducts: 0,
@@ -72,15 +81,9 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
-  const chartData = (stats.monthlySales || []).slice(-monthsToShow);
-  const totalRevenue = (stats.monthlySales || []).reduce(
-    (sum, m) => sum + (m.totalRevenue || 0),
-    0
-  );
-  const totalItemsSold = (stats.monthlySales || []).reduce(
-    (sum, m) => sum + (m.itemsSold || 0),
-    0
-  );
+  const chartData = stats.monthlySales.slice(-monthsToShow);
+  const totalRevenue = stats.monthlySales.reduce((sum, m) => sum + (m.totalRevenue || 0), 0);
+  const totalItemsSold = stats.monthlySales.reduce((sum, m) => sum + (m.itemsSold || 0), 0);
 
   if (loading) {
     return (
@@ -95,10 +98,7 @@ export default function Dashboard() {
       <div className="alert alert-error shadow-lg">
         <div>
           <span>{error}</span>
-          <button
-            className="btn btn-sm btn-primary ml-4"
-            onClick={() => window.location.reload()}
-          >
+          <button className="btn btn-sm btn-primary ml-4" onClick={() => window.location.reload()}>
             Retry
           </button>
         </div>
@@ -126,7 +126,8 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+      {/* KPI Cards */}
+      <div className="flex flex-wrap gap-6">
         {[
           { icon: FaBoxes, label: "Products", value: stats.totalProducts, color: "from-blue-500 to-blue-600" },
           { icon: FaTags, label: "Brands", value: stats.totalBrands, color: "from-purple-500 to-purple-600" },
@@ -135,19 +136,17 @@ export default function Dashboard() {
           { icon: FaDollarSign, label: "Revenue", value: `₱${totalRevenue.toLocaleString()}`, color: "from-green-500 to-green-600" },
         ].map((card, idx) => (
           <div
-            key={idx}
-            className={`card shadow-md p-5 text-white bg-gradient-to-r ${card.color} rounded-xl`}
-          >
-            <div className="flex items-center space-x-4">
-              <div className="p-3 bg-white/20 rounded-full">
-                <card.icon className="text-2xl" />
-              </div>
-              <div>
-                <p className="text-sm opacity-80">{card.label}</p>
-                <p className="text-2xl font-bold">{card.value}</p>
-              </div>
-            </div>
-          </div>
+      key={idx}
+      className={`card shadow-md p-5 text-white bg-gradient-to-r ${card.color} rounded-xl flex-1 min-w-[250px]`}
+    >
+      <div className="flex items-center gap-4">
+        <div className="p-3 bg-white/20 rounded-full flex-shrink-0">
+          <card.icon className="text-2xl" />
+        </div>
+        <KPIValue label={card.label} value={card.value} />
+      </div>
+    </div>
+
         ))}
       </div>
 
@@ -162,9 +161,7 @@ export default function Dashboard() {
               yAxisId="right"
               orientation="right"
               stroke="#82ca9d"
-              tickFormatter={(val) =>
-                `₱${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              }
+              tickFormatter={(val) => `₱${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
             />
             <Tooltip />
             <Legend />
@@ -174,101 +171,97 @@ export default function Dashboard() {
         </ResponsiveContainer>
       </div>
 
-      {/* Latest Sales + Top Products */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Latest Sales */}
-        <div className="card bg-base-100 shadow-md p-6 overflow-x-auto">
-          <h2 className="text-xl font-semibold mb-4">Latest Sales</h2>
-          <table className="table table-compact w-full">
-            <thead className="sticky top-0 bg-base-200">
-              <tr>
-                <th>Date</th>
-                <th>User</th>
-                <th>Items</th>
-                <th>Total</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.latestSales?.length > 0 ? (
-                stats.latestSales.map((sale) => (
-                  <tr key={sale._id} className="hover">
-                    <td>{sale.date ? new Date(sale.date).toLocaleString() : "N/A"}</td>
-                    <td>{sale.user?.name || "N/A"}</td>
-                    <td className="flex flex-wrap gap-1">
-                      {sale.items?.map((item, idx) => {
-                        const variantLabel =
-                          item.variants?.length > 0
-                            ? ` (${item.variants.map((v) => v.option).join(", ")})`
-                            : "";
-                        return (
-                          <span
-                            key={`${item.product?._id || idx}`}
-                            className="badge badge-sm badge-primary"
-                          >
-                            {item.product?.name || "N/A"}{variantLabel} × {item.quantity || 0}
-                          </span>
-                        );
-                      })}
-                    </td>
-                    <td className="font-semibold text-success">
-                      ₱{sale.totalAmount?.toLocaleString() || 0}
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-xs btn-outline btn-primary"
-                        onClick={() => generatePDF(sale)}
-                      >
-                        Invoice
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="text-center">No sales found</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-                {/* Top Products */}
-        <div className="card bg-base-100 shadow-md p-6 overflow-x-auto">
-          <h2 className="text-xl font-semibold mb-4">Top Products</h2>
-          <table className="table table-compact w-full">
-            <thead className="sticky top-0 bg-base-200">
-              <tr>
-                <th>Product</th>
-                <th>Price</th>
-                <th>Total Sold</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.topProducts?.length > 0 ? (
-                stats.topProducts.map((p) => (
-                  <tr key={p._id} className="hover">
-                    <td className="font-medium">{p.name}</td>
-                    <td className="text-warning">
-                      ₱{p.price?.toLocaleString() || 0}
-                    </td>
-                    <td>
-                      <span className="badge badge-sm badge-success">
-                        {p.totalSold || 0}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={3} className="text-center">
-                    No product data
+      {/* Latest Sales */}
+      <div className="card bg-base-100 shadow-md p-6 overflow-x-auto">
+        <h2 className="text-xl font-semibold mb-4">Latest Sales</h2>
+        <table className="table table-compact w-full">
+          <thead className="sticky top-0 bg-base-200">
+            <tr>
+              <th>Date</th>
+              <th>User</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.latestSales.length > 0 ? (
+              stats.latestSales.map((sale) => (
+                <tr key={sale._id} className="hover">
+                  <td>{sale.date ? new Date(sale.date).toLocaleString() : "N/A"}</td>
+                  <td>{sale.user?.name || "N/A"}</td>
+                  <td className="flex flex-wrap gap-1">
+                    {sale.items.map((item, idx) => {
+                      const variantLabel = item.variants?.length
+                        ? ` (${item.variants.map((v) => v.option).join(", ")})`
+                        : "";
+                      const fullText = `${item.product?.name || "N/A"}${variantLabel} × ${item.quantity || 0}`;
+                      return (
+                        <span
+                          key={idx}
+                          className="badge badge-sm badge-primary whitespace-nowrap"
+                          title={fullText}
+                        >
+                          {fullText}
+                        </span>
+                      );
+                    })}
+                  </td>
+                  <td className="font-semibold text-success">
+                    ₱{sale.totalAmount?.toLocaleString() || 0}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-xs btn-outline btn-primary"
+                      onClick={() => generatePDF(sale)}
+                    >
+                      Invoice
+                    </button>
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                                <td colSpan={5} className="text-center">No sales found</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Top Products */}
+      <div className="card bg-base-100 shadow-md p-6 overflow-x-auto">
+        <h2 className="text-xl font-semibold mb-4">Top Products</h2>
+        <table className="table table-compact w-full">
+          <thead className="sticky top-0 bg-base-200">
+            <tr>
+              <th>Product</th>
+              <th>Price</th>
+              <th>Total Sold</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.topProducts.length > 0 ? (
+              stats.topProducts.map((p) => (
+                <tr key={p._id} className="hover">
+                  <td className="font-medium">{p.name}</td>
+                  <td className="text-warning">
+                    ₱{p.price?.toLocaleString() || 0}
+                  </td>
+                  <td>
+                    <span className="badge badge-sm badge-success">
+                      {p.totalSold || 0}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={3} className="text-center">No product data</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Staff Performance */}
@@ -285,7 +278,7 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {stats.staffStats?.length > 0 ? (
+            {stats.staffStats.length > 0 ? (
               stats.staffStats.map((s) => (
                 <tr key={s.staffId} className="hover">
                   <td className="font-medium">{s.staffName}</td>
@@ -303,9 +296,7 @@ export default function Dashboard() {
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="text-center">
-                  No staff data
-                </td>
+                <td colSpan={5} className="text-center">No staff data</td>
               </tr>
             )}
           </tbody>
@@ -317,7 +308,7 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold text-error mb-4 flex items-center gap-2">
           <FaExclamationTriangle /> Low Stock Alerts
         </h2>
-        {stats.lowStockProducts?.length > 0 ? (
+        {stats.lowStockProducts.length > 0 ? (
           <ul className="space-y-2">
             {stats.lowStockProducts.map((p) => (
               <li
