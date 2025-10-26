@@ -73,25 +73,47 @@ export default function Inventory() {
     }
   };
 
-  const fetchProducts = async (api) => {
-    try {
-      const res = await api.get("/products", {
-        params: {
-          page,
-          limit,
-          search: searchTerm,
-          brand: filterBrand,
-          category: filterCategory,
-          sort: sortField,
-          order: sortOrder,
-        },
-      });
-      setProducts(res.data.data);
-      setTotalPages(res.data.totalPages);
-    } catch {
-      setMessage({ type: "error", text: "Failed to fetch products." });
-    }
-  };
+const fetchProducts = async (api) => {
+  try {
+    const res = await api.get("/products", {
+      params: {
+        page,
+        limit,
+        search: searchTerm,
+        brand: filterBrand,
+        category: filterCategory,
+        sort: sortField,
+        order: sortOrder,
+      },
+    });
+
+    const raw = Array.isArray(res.data?.data) ? res.data.data : [];
+    const normalized = raw.map((p) => {
+      const variants = Array.isArray(p.variants) ? p.variants : [];
+      const safeVariants = variants.map((v) => ({
+        attributes: typeof v.attributes === "object" && v.attributes ? v.attributes : {},
+        stock: typeof v.stock === "number" ? v.stock : 0,
+        price: typeof v.price === "number" ? v.price : 0,
+      }));
+
+      return {
+        _id: p._id,
+        name: p.name ?? "",
+        brand: p.brand ?? "",
+        category: p.category ?? "",
+        hasVariants: !!p.hasVariants,
+        stock: typeof p.stock === "number" ? p.stock : 0,
+        price: typeof p.price === "number" ? p.price : 0,
+        variants: safeVariants,
+      };
+    });
+
+    setProducts(normalized);
+    setTotalPages(typeof res.data?.totalPages === "number" ? res.data.totalPages : 1);
+  } catch {
+    setMessage({ type: "error", text: "Failed to fetch products." });
+  }
+};
 
   const fetchBrands = async (api) => {
     try {
