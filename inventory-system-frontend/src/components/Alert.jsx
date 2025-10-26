@@ -1,12 +1,12 @@
-import React, { useEffect } from "react";
+// components/Alert.jsx
+import { useEffect } from "react";
 
-export default function Alert({ message, onRetry, clearMessage }) {
-  // Auto-dismiss success after 3s
+export default function Alert({ message, clearMessage, onRetry }) {
   useEffect(() => {
-    if (message?.type === "success") {
+    if (message) {
       const timer = setTimeout(() => {
-        clearMessage?.();
-      }, 3000);
+        clearMessage();
+      }, 3000); // auto-dismiss after 3s
       return () => clearTimeout(timer);
     }
   }, [message, clearMessage]);
@@ -15,20 +15,15 @@ export default function Alert({ message, onRetry, clearMessage }) {
 
   return (
     <div
-      className={`alert shadow-md transition-all duration-300 ${
+      className={`alert ${
         message.type === "error" ? "alert-error" : "alert-success"
-      }`}
+      } shadow-lg`}
     >
-      <span className="flex items-center gap-2">
-        {message.type === "error" ? "⚠️" : "✅"}
-        {message.text}
-      </span>
-
-      {message.type === "error" && onRetry && (
-        <button
-          className="btn btn-xs btn-outline ml-4"
-          onClick={onRetry}
-        >
+      <div className="flex-1">
+        <span>{message.text}</span>
+      </div>
+      {onRetry && message.type === "error" && (
+        <button className="btn btn-sm btn-ghost ml-2" onClick={onRetry}>
           Retry
         </button>
       )}

@@ -1,32 +1,114 @@
-import { useState, useEffect } from "react";
+// pages/Brands.jsx
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
+import { DataTableProvider } from "../contexts/DataTableContext";
+import DataTable from "../components/DataTable";
+import Alert from "../components/Alert";
+import Form from "../components/Form";
 
 export default function Brands() {
+  // --- State ---
   const [brands, setBrands] = useState([]);
-  const [form, setForm] = useState({ name: "" });
-  const [editingBrand, setEditingBrand] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState(null);
+
+  // server-side table state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortField, setSortField] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [search, setSearch] = useState("");
+
+  // form state
+  const [editingId, setEditingId] = useState(null);
+  const [formValues, setFormValues] = useState({ name: "", description: "" });
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState(null); // For success/error messages
+  const [showForm, setShowForm] = useState(false);
+  const [formError, setFormError] = useState(null);
 
-  const token = localStorage.getItem("token");
+  const messageRef = useRef(null);
 
+  // --- API setup ---
+  const getApi = () => {
+    const token = localStorage.getItem("token");
+    return axios.create({
+      baseURL: `${API_URL}/api`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  };
+
+  // --- Helpers for alerts ---
+  const showSuccess = (text) => {
+    setMessage({ type: "success", text });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const showError = (text) => {
+    setMessage({ type: "error", text });
+    setTimeout(() => setMessage(null), 5000);
+  };
+
+  // --- Fetch brands ---
   useEffect(() => {
     fetchBrands();
-  }, []);
+  }, [page, pageSize, search, sortField, sortOrder]);
 
   const fetchBrands = async () => {
     setLoading(true);
-    setMessage(null);
+    const api = getApi();
     try {
-      const res = await axios.get(`${API_URL}/api/brands`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await api.get("/brands", {
+        params: {
+          page,
+          limit: pageSize,
+          search,
+          sort: sortField,
+          order: sortOrder,
+        },
       });
-      setBrands(res.data);
+
+      const raw = Array.isArray(res.data?.data) ? res.data.data : [];
+      const normalized = raw.map((b) => ({
+        _id: b._id,
+        name: b.name ?? "",
+        description: b.description ?? "",
+        createdAt: b.createdAt,
+        updatedAt: b.updatedAt,
+      }));
+
+      setBrands(normalized);
+      setTotalPages(
+        typeof res.data?.totalPages === "number" ? res.data.totalPages : 1
+      );
     } catch (err) {
-      console.error("Error fetching brands:", err);
-      setMessage({ type: "error", text: "Failed to load brands. Try refreshing." });
+      showError("Failed to fetch brands.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- CRUD handlers ---
+  const handleEdit = (brand) => {
+    setEditingId(brand._id);
+    setFormValues({ name: brand.name, description: brand.description });
+    setFormError(null);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this brand?")) return;
+    setLoading(true);
+    try {
+      const api = getApi();
+      await api.delete(`/brands/${id}`);
+      fetchBrands();
+      showSuccess("Brand deleted successfully!");
+    } catch (err) {
+      const backendMsg =
+        err.response?.data?.error || "Failed to delete brand.";
+      showError(backendMsg);
     } finally {
       setLoading(false);
     }
@@ -35,132 +117,114 @@ export default function Brands() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setFormError(null);
+    const api = getApi();
     try {
-      if (editingBrand) {
-        await axios.put(`${API_URL}/api/brands/${editingBrand._id}`, form, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setMessage({ type: "success", text: "Brand updated successfully." });
-        setEditingBrand(null);
+      if (editingId) {
+        await api.put(`/brands/${editingId}`, formValues);
+        showSuccess("Brand updated successfully!");
       } else {
-        await axios.post(`${API_URL}/api/brands`, form, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setMessage({ type: "success", text: "Brand added successfully." });
+        await api.post("/brands", formValues);
+        showSuccess("Brand added successfully!");
       }
-      setForm({ name: "" });
       fetchBrands();
+      handleCancel();
     } catch (err) {
-      console.error("Error saving brand:", err);
-      setMessage({ type: "error", text: "Failed to save brand. Please try again." });
+      const backendMsg =
+        err.response?.data?.error || "Failed to save brand.";
+      setFormError(backendMsg); // show inside modal
+      showError(backendMsg);    // also show global alert
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleEdit = (brand) => {
-    setEditingBrand(brand);
-    setForm({ name: brand.name });
+  const handleCancel = () => {
+    setEditingId(null);
+    setFormValues({ name: "", description: "" });
+    setShowForm(false);
+    setFormError(null);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this brand?")) return;
-    try {
-      await axios.delete(`${API_URL}/api/brands/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setMessage({ type: "success", text: "Brand deleted successfully." });
-      fetchBrands();
-    } catch (err) {
-      console.error("Error deleting brand:", err);
-      setMessage({ type: "error", text: "Failed to delete brand." });
-    }
-  };
+  // --- Form fields config ---
+  const fields = [
+    { type: "text", name: "name", label: "Brand Name", required: true },
+    { type: "textarea", name: "description", label: "Description" },
+  ];
 
+  // --- Render ---
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Brands</h1>
-
-      {/* Messages / Error Alerts */}
-      {message && message.type === "error" && (
-        <div className="alert alert-error shadow-lg flex justify-between items-center mb-4">
-          <span>{message.text}</span>
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={() => {
-              setMessage(null);
-              fetchBrands();
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {message && message.type === "success" && (
-        <div className="alert alert-success shadow-lg mb-4">
-          {message.text}
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="mb-8 space-y-4 p-4 bg-base-200 rounded-lg">
-        <input
-          type="text"
-          placeholder="Brand Name"
-          value={form.name}
-          onChange={(e) => setForm({ name: e.target.value })}
-          className="input input-bordered w-full"
-          required
-          disabled={submitting}
-        />
-        <button type="submit" className={`btn btn-primary ${submitting ? "loading" : ""}`}>
-          {editingBrand ? "Update Brand" : "Add Brand"}
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Brands</h1>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            setEditingId(null);
+            setFormValues({ name: "", description: "" });
+            setFormError(null);
+            setShowForm(true);
+          }}
+        >
+          + Add Brand
         </button>
-        {editingBrand && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => {
-              setEditingBrand(null);
-              setForm({ name: "" });
-            }}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-        )}
-      </form>
+      </div>
 
-      {/* Table / Loading */}
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <span className="loading loading-spinner text-primary loading-lg"></span>
-        </div>
-      ) : (
-        <table className="table w-full">
-          <thead>
-            <tr>
-              <th>Brand</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {brands.map((b) => (
-              <tr key={b._id} className={editingBrand?._id === b._id ? "bg-base-300" : ""}>
-                <td>{b.name}</td>
-                <td className="space-x-2">
-                  <button className="btn btn-sm btn-info" onClick={() => handleEdit(b)}>
-                    Edit
-                  </button>
-                  <button className="btn btn-sm btn-error" onClick={() => handleDelete(b._id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Alert
+        message={message}
+        onRetry={fetchBrands}
+        clearMessage={() => setMessage(null)}
+      />
+
+      <Form
+        show={showForm}
+        title={editingId ? "Edit Brand" : "Add Brand"}
+        fields={fields}
+        values={formValues}
+        setValues={setFormValues}
+        submitting={submitting}
+        onSubmit={handleSubmit}
+        onCancel={handleCancel}
+        error={formError}
+        clearError={() => setFormError(null)}
+      />
+
+      <DataTableProvider
+        value={{
+          data: brands,
+          loading,
+          page,
+          setPage,
+          pageSize,
+          setPageSize,
+          totalPages,
+          sortField,
+          sortOrder,
+          setSort: (field) => {
+            if (sortField === field) {
+              setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+            } else {
+              setSortField(field);
+              setSortOrder("asc");
+            }
+          },
+          search,
+          setSearch,
+          filters: {}, // no extra filters for brands
+          setFilters: () => {},
+        }}
+      >
+        <DataTable
+          columns={[
+            { field: "name", label: "Name" },
+            { field: "description", label: "Description" },
+            { field: "createdAt", label: "Created At", type: "date" },
+            { field: "updatedAt", label: "Updated At", type: "date" },
+          ]}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      </DataTableProvider>
     </div>
   );
 }

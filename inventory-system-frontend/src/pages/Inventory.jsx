@@ -115,14 +115,27 @@ const fetchProducts = async (api) => {
   }
 };
 
-  const fetchBrands = async (api) => {
-    try {
-      const res = await api.get("/brands");
-      setBrands(res.data);
-    } catch {
-      setMessage({ type: "error", text: "Failed to fetch brands." });
-    }
-  };
+const fetchBrands = async (api) => {
+  try {
+    const res = await api.get("/brands/all");
+
+    // Normalize response: handle paginated { data: [...] } or plain array
+    const raw = Array.isArray(res.data?.data)
+      ? res.data.data
+      : Array.isArray(res.data)
+      ? res.data
+      : [];
+
+    const normalized = raw.map((b) => ({
+      _id: b._id,
+      name: b.name ?? "",
+    }));
+
+    setBrands(normalized);
+  } catch {
+    setMessage({ type: "error", text: "Failed to fetch brands." });
+  }
+};
 
   const fetchCategories = async (api) => {
     try {
