@@ -151,7 +151,6 @@ export default function SalesTable({ sales = [] }) {
     }
   };
 
-  // 📤 Export handler
   const handleExport = () => {
     const token = localStorage.getItem("token");
     const params = new URLSearchParams();
