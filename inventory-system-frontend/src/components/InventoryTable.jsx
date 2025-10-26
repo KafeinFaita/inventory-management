@@ -39,57 +39,26 @@ export default function InventoryTable({
           <thead className="sticky top-0 bg-base-200">
             <tr>
               <th></th>
-              <SortableHeader
-                label="Name"
-                field="name"
-                sortField={sortField}
-                sortOrder={sortOrder}
-                onSort={onSort}
-              />
-              <SortableHeader
-                label="Brand"
-                field="brand"
-                sortField={sortField}
-                sortOrder={sortOrder}
-                onSort={onSort}
-              />
-              <SortableHeader
-                label="Category"
-                field="category"
-                sortField={sortField}
-                sortOrder={sortOrder}
-                onSort={onSort}
-              />
+              <SortableHeader label="Name" field="name" sortField={sortField} sortOrder={sortOrder} onSort={onSort} />
+              <SortableHeader label="Brand" field="brand" sortField={sortField} sortOrder={sortOrder} onSort={onSort} />
+              <SortableHeader label="Category" field="category" sortField={sortField} sortOrder={sortOrder} onSort={onSort} />
               <th>Has Variants</th>
-              <SortableHeader
-                label="Stock"
-                field="stock"
-                sortField={sortField}
-                sortOrder={sortOrder}
-                onSort={onSort}
-                align="right"
-              />
-              <SortableHeader
-                label="Price"
-                field="price"
-                sortField={sortField}
-                sortOrder={sortOrder}
-                onSort={onSort}
-                align="right"
-              />
+              <SortableHeader label="Stock" field="stock" sortField={sortField} sortOrder={sortOrder} onSort={onSort} align="right" />
+              <SortableHeader label="Price" field="price" sortField={sortField} sortOrder={sortOrder} onSort={onSort} align="right" />
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {products.map((p) => {
-              const totalStock = p.hasVariants
-                ? p.variants.reduce((sum, v) => sum + v.stock, 0)
-                : p.stock;
-              const priceRange = p.hasVariants
-                ? `${Math.min(...p.variants.map((v) => v.price))}–${Math.max(
-                    ...p.variants.map((v) => v.price)
-                  )}`
-                : p.price;
+              const totalStock =
+                p.hasVariants && Array.isArray(p.variants)
+                  ? p.variants.reduce((sum, v) => sum + (v.stock || 0), 0)
+                  : p.stock ?? 0;
+
+              const priceRange =
+                p.hasVariants && Array.isArray(p.variants) && p.variants.length > 0
+                  ? `${Math.min(...p.variants.map((v) => v.price))}–${Math.max(...p.variants.map((v) => v.price))}`
+                  : p.price;
 
               const isLowStock = totalStock <= 5;
 
@@ -97,15 +66,13 @@ export default function InventoryTable({
                 <React.Fragment key={p._id}>
                   <tr className={isLowStock ? "bg-error/10 text-error" : ""}>
                     <td>
-                      {p.hasVariants && (
+                      {p.hasVariants && Array.isArray(p.variants) && p.variants.length > 0 && (
                         <button
                           type="button"
                           className="btn btn-xs btn-outline text-xs whitespace-nowrap"
                           onClick={() => toggleRow(p._id)}
                         >
-                          {expandedRows[p._id]
-                            ? "Hide Variants ▾"
-                            : "View Variants ▸"}
+                          {expandedRows[p._id] ? "Hide Variants ▾" : "View Variants ▸"}
                         </button>
                       )}
                     </td>
@@ -125,26 +92,22 @@ export default function InventoryTable({
                       )}
                     </td>
                     <td className="text-right">
-                      {p.hasVariants ? `₱${priceRange}` : `₱${p.price}`}
+                      {p.hasVariants && Array.isArray(p.variants) && p.variants.length > 0
+                        ? `₱${priceRange}`
+                        : `₱${p.price}`}
                     </td>
                     <td className="space-x-2">
-                      <button
-                        className="btn btn-sm btn-info"
-                        onClick={() => handleEdit(p)}
-                      >
+                      <button className="btn btn-sm btn-info" onClick={() => handleEdit(p)}>
                         Edit
                       </button>
-                      <button
-                        className="btn btn-sm btn-error"
-                        onClick={() => handleDelete(p._id)}
-                      >
+                      <button className="btn btn-sm btn-error" onClick={() => handleDelete(p._id)}>
                         Delete
                       </button>
                     </td>
                   </tr>
 
                   {/* Variants table */}
-                  {p.hasVariants && expandedRows[p._id] && (
+                  {p.hasVariants && Array.isArray(p.variants) && p.variants.length > 0 && expandedRows[p._id] && (
                     <tr className="bg-base-200">
                       <td colSpan={8}>
                         <div className="overflow-x-auto rounded-lg border bg-base-100 shadow-sm p-4">
@@ -152,24 +115,17 @@ export default function InventoryTable({
                           <table className="table table-compact w-full">
                             <thead className="bg-base-200">
                               <tr>
-                                {Object.keys(p.variants[0].attributes).map(
-                                  (cat, i) => (
-                                    <th key={i}>{cat}</th>
-                                  )
-                                )}
+                                {Object.keys(p.variants[0].attributes || {}).map((cat, i) => (
+                                  <th key={i}>{cat}</th>
+                                ))}
                                 <th>Stock</th>
                                 <th>Price</th>
                               </tr>
                             </thead>
                             <tbody>
                               {p.variants.map((v, i) => (
-                                <tr
-                                  key={i}
-                                  className={
-                                    v.stock <= 5 ? "bg-error/10 text-error" : ""
-                                  }
-                                >
-                                  {Object.values(v.attributes).map((val, j) => (
+                                <tr key={i} className={v.stock <= 5 ? "bg-error/10 text-error" : ""}>
+                                  {Object.values(v.attributes || {}).map((val, j) => (
                                     <td key={j}>{val}</td>
                                   ))}
                                   <td className="text-right">
