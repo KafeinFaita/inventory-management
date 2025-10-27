@@ -1,120 +1,230 @@
-import { useState, useEffect } from "react";
+// pages/Categories.jsx
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
+import { DataTableProvider } from "../contexts/DataTableContext";
+import DataTable from "../components/DataTable";
+import Alert from "../components/Alert";
+import Form from "../components/Form";
 
 export default function Categories() {
+  // --- State ---
   const [categories, setCategories] = useState([]);
-  const [form, setForm] = useState({ name: "" });
-  const [editingCategory, setEditingCategory] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState(null);
 
-  // Get token from localStorage
-  const token = localStorage.getItem("token");
+  // server-side table state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortField, setSortField] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [search, setSearch] = useState("");
 
+  // form state
+  const [editingId, setEditingId] = useState(null);
+  const [formValues, setFormValues] = useState({ name: "", description: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const messageRef = useRef(null);
+
+  // --- API setup ---
+  const getApi = () => {
+    const token = localStorage.getItem("token");
+    return axios.create({
+      baseURL: `${API_URL}/api`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  };
+
+  // --- Helpers for alerts ---
+  const showSuccess = (text) => {
+    setMessage({ type: "success", text });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const showError = (text) => {
+    setMessage({ type: "error", text });
+    setTimeout(() => setMessage(null), 5000);
+  };
+
+  // --- Fetch categories ---
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [page, pageSize, search, sortField, sortOrder]);
 
   const fetchCategories = async () => {
+    setLoading(true);
+    const api = getApi();
     try {
-      const res = await axios.get(`${API_URL}/api/categories`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await api.get("/categories", {
+        params: {
+          page,
+          limit: pageSize,
+          search,
+          sort: sortField,
+          order: sortOrder,
+        },
       });
-      setCategories(res.data);
+
+      const raw = Array.isArray(res.data?.data) ? res.data.data : [];
+      const normalized = raw.map((c) => ({
+        _id: c._id,
+        name: c.name ?? "",
+        description: c.description ?? "",
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      }));
+
+      setCategories(normalized);
+      setTotalPages(
+        typeof res.data?.totalPages === "number" ? res.data.totalPages : 1
+      );
     } catch (err) {
-      console.error("Error fetching categories:", err);
+      showError("Failed to fetch categories.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- CRUD handlers ---
+  const handleEdit = (category) => {
+    setEditingId(category._id);
+    setFormValues({ name: category.name, description: category.description });
+    setFormError(null);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this category?")) return;
+    setLoading(true);
+    try {
+      const api = getApi();
+      await api.delete(`/categories/${id}`);
+      fetchCategories();
+      showSuccess("Category deleted successfully!");
+    } catch (err) {
+      const backendMsg =
+        err.response?.data?.error || "Failed to delete category.";
+      showError(backendMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setFormError(null);
+    const api = getApi();
     try {
-      if (editingCategory) {
-        await axios.put(
-          `${API_URL}/api/categories/${editingCategory._id}`,
-          form,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        setEditingCategory(null);
+      if (editingId) {
+        await api.put(`/categories/${editingId}`, formValues);
+        showSuccess("Category updated successfully!");
       } else {
-        await axios.post(`${API_URL}/api/categories`, form, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await api.post("/categories", formValues);
+        showSuccess("Category added successfully!");
       }
-      setForm({ name: "" });
       fetchCategories();
+      handleCancel();
     } catch (err) {
-      console.error("Error saving category:", err);
+      const backendMsg =
+        err.response?.data?.error || "Failed to save category.";
+      setFormError(backendMsg); // show inside modal
+      showError(backendMsg);    // also show global alert
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleEdit = (category) => {
-    setEditingCategory(category);
-    setForm({ name: category.name });
+  const handleCancel = () => {
+    setEditingId(null);
+    setFormValues({ name: "", description: "" });
+    setShowForm(false);
+    setFormError(null);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this category?")) return;
-    try {
-      await axios.delete(`${API_URL}/api/categories/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchCategories();
-    } catch (err) {
-      console.error("Error deleting category:", err);
-    }
-  };
+  // --- Form fields config ---
+  const fields = [
+    { type: "text", name: "name", label: "Category Name", required: true },
+    { type: "textarea", name: "description", label: "Description" },
+  ];
 
+  // --- Render ---
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Categories</h1>
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="mb-8 space-y-4 p-4 bg-base-200 rounded-lg">
-        <input
-          type="text"
-          placeholder="Category Name"
-          value={form.name}
-          onChange={(e) => setForm({ name: e.target.value })}
-          className="input input-bordered w-full"
-          required
-        />
-        <button type="submit" className="btn btn-primary">
-          {editingCategory ? "Update Category" : "Add Category"}
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Categories</h1>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            setEditingId(null);
+            setFormValues({ name: "", description: "" });
+            setFormError(null);
+            setShowForm(true);
+          }}
+        >
+          + Add Category
         </button>
-        {editingCategory && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => {
-              setEditingCategory(null);
-              setForm({ name: "" });
-            }}
-          >
-            Cancel
-          </button>
-        )}
-      </form>
+      </div>
 
-      {/* Table */}
-      <table className="table w-full">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {categories.map((c) => (
-            <tr key={c._id}>
-              <td>{c.name}</td>
-              <td className="space-x-2">
-                <button className="btn btn-sm btn-info" onClick={() => handleEdit(c)}>Edit</button>
-                <button className="btn btn-sm btn-error" onClick={() => handleDelete(c._id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Alert
+        message={message}
+        onRetry={fetchCategories}
+        clearMessage={() => setMessage(null)}
+      />
+
+      <Form
+        show={showForm}
+        title={editingId ? "Edit Category" : "Add Category"}
+        fields={fields}
+        values={formValues}
+        setValues={setFormValues}
+        submitting={submitting}
+        onSubmit={handleSubmit}
+        onCancel={handleCancel}
+        error={formError}
+        clearError={() => setFormError(null)}
+      />
+
+      <DataTableProvider
+        value={{
+          data: categories,
+          loading,
+          page,
+          setPage,
+          pageSize,
+          setPageSize,
+          totalPages,
+          sortField,
+          sortOrder,
+          setSort: (field) => {
+            if (sortField === field) {
+              setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+            } else {
+              setSortField(field);
+              setSortOrder("asc");
+            }
+          },
+          search,
+          setSearch,
+          filters: {}, // no extra filters for categories
+          setFilters: () => {},
+        }}
+      >
+        <DataTable
+          columns={[
+            { field: "name", label: "Name" },
+            { field: "description", label: "Description" },
+            { field: "createdAt", label: "Created At", type: "date" },
+            { field: "updatedAt", label: "Updated At", type: "date" },
+          ]}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      </DataTableProvider>
     </div>
   );
 }

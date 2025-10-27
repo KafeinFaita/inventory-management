@@ -139,8 +139,21 @@ const fetchBrands = async (api) => {
 
   const fetchCategories = async (api) => {
     try {
-      const res = await api.get("/categories");
-      setCategories(res.data);
+      const res = await api.get("/categories/all");
+
+      // Normalize response: handle paginated { data: [...] } or plain array
+      const raw = Array.isArray(res.data?.data)
+        ? res.data.data
+        : Array.isArray(res.data)
+        ? res.data
+        : [];
+
+      const normalized = raw.map((c) => ({
+        _id: c._id,
+        name: c.name ?? "",
+      }));
+
+      setCategories(normalized);
     } catch {
       setMessage({ type: "error", text: "Failed to fetch categories." });
     }

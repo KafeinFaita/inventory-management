@@ -10,6 +10,10 @@ const categorySchema = new mongoose.Schema(
       unique: true,
       trim: true, // ✅ avoids duplicates like "Shoes " vs "Shoes"
     },
+    description: {
+      type: String,
+    },
+
   },
   { timestamps: true }
 );
